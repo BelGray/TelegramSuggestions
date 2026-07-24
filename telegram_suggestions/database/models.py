@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
-from sqlalchemy import BigInteger, String, Text, Boolean, Integer, DateTime, ForeignKey, JSON, func
+from sqlalchemy import BigInteger, String, Text, Boolean, Integer, DateTime, ForeignKey, JSON, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
@@ -23,6 +23,7 @@ class Channel(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     deep_link_hash: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    language_code: Mapped[str] = mapped_column(String(10), default="ru")  # Язык публикаций канала
 
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
     premium_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -76,6 +77,7 @@ class Message(Base):
 
 class ChannelBan(Base):
     __tablename__ = "channel_bans"
+    __table_args__ = (UniqueConstraint("channel_id", "user_id", name="uq_channel_user_ban"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     channel_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("channels.id", ondelete="CASCADE"), index=True)
@@ -84,7 +86,6 @@ class ChannelBan(Base):
 
 
 class AdminNotification(Base):
-    """Таблица трекинга отправленных сообщений админам для синхронизации"""
     __tablename__ = "admin_notifications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

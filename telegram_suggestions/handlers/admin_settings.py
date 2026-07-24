@@ -19,7 +19,8 @@ from telegram_suggestions.database.requests import (
     set_channel_welcome_message,
     set_channel_auto_reply,
     get_channel_stats,
-    get_channel_reviews_for_export
+    get_channel_reviews_for_export,
+    is_user_channel_admin
 )
 from telegram_suggestions.utils.localization import t
 
@@ -80,10 +81,20 @@ async def back_to_channels(callback: types.CallbackQuery, bot: Bot, state: FSMCo
 async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
     await state.clear()
     channel_id = int(callback.data.replace("adm_ch_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     channel = await get_channel_by_id(channel_id)
+    if not channel:
+        await callback.answer(t("err_channel_not_found", lang), show_alert=True)
+        return
+
     bot_info = await bot.get_me()
     sub_link = f"https://t.me/{bot_info.username}?start=c_{channel.deep_link_hash}"
 
@@ -116,13 +127,19 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await callback.message.edit_text(text, reply_markup=kb)
 
 
-# ==================== УПРАВЛЕНИЕ ПРЕМИУМ НАСТРОЙКАМИ ====================
-
 async def show_manage_premium_menu(callback: types.CallbackQuery, channel_id: int):
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     channel = await get_channel_by_id(channel_id)
+    if not channel:
+        return
+
     settings = channel.settings or {}
     show_copy = settings.get("show_copyright", True)
 
@@ -145,11 +162,16 @@ async def manage_premium_menu_entry(callback: types.CallbackQuery):
     await show_manage_premium_menu(callback, channel_id)
 
 
-# Просмотр статистики и экспорт CSV
 @router.callback_query(F.data.startswith("prem_stats_"))
 async def show_premium_stats(callback: types.CallbackQuery, bot: Bot):
     channel_id = int(callback.data.replace("prem_stats_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     try:
@@ -182,7 +204,13 @@ async def show_premium_stats(callback: types.CallbackQuery, bot: Bot):
 @router.callback_query(F.data.startswith("export_csv_"))
 async def export_reviews_csv(callback: types.CallbackQuery, bot: Bot):
     channel_id = int(callback.data.replace("export_csv_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     reviews = await get_channel_reviews_for_export(channel_id)
@@ -217,7 +245,13 @@ async def export_reviews_csv(callback: types.CallbackQuery, bot: Bot):
 @router.callback_query(F.data.startswith("set_welc_"))
 async def prompt_welcome(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("set_welc_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await state.update_data(channel_id=channel_id)
@@ -231,19 +265,32 @@ async def prompt_welcome(callback: types.CallbackQuery, state: FSMContext):
 async def process_save_welcome(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     channel_id = data["channel_id"]
-    user = await get_or_create_user(message.from_user.id)
+    user_id = message.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await message.answer(t("err_not_channel_admin", "ru"))
+        await state.clear()
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await set_channel_welcome_message(channel_id, message.text)
     await message.answer(t("welcome_saved_success", lang))
-    await show_admin_channels_list(message, message.from_user.id, bot, state)
+    await show_admin_channels_list(message, user_id, bot, state)
 
 
 @router.callback_query(F.data.startswith("reset_welc_"))
 async def reset_welcome(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("reset_welc_", ""))
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
     await state.clear()
-    user = await get_or_create_user(callback.from_user.id)
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await set_channel_welcome_message(channel_id, None)
@@ -254,7 +301,13 @@ async def reset_welcome(callback: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("set_autorep_"))
 async def prompt_autoreply(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("set_autorep_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await state.update_data(channel_id=channel_id)
@@ -268,19 +321,32 @@ async def prompt_autoreply(callback: types.CallbackQuery, state: FSMContext):
 async def process_save_autoreply(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     channel_id = data["channel_id"]
-    user = await get_or_create_user(message.from_user.id)
+    user_id = message.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await message.answer(t("err_not_channel_admin", "ru"))
+        await state.clear()
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await set_channel_auto_reply(channel_id, message.text)
     await message.answer(t("autoreply_saved_success", lang))
-    await show_admin_channels_list(message, message.from_user.id, bot, state)
+    await show_admin_channels_list(message, user_id, bot, state)
 
 
 @router.callback_query(F.data.startswith("reset_autorep_"))
 async def reset_autoreply(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("reset_autorep_", ""))
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
     await state.clear()
-    user = await get_or_create_user(callback.from_user.id)
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await set_channel_auto_reply(channel_id, None)
@@ -291,21 +357,35 @@ async def reset_autoreply(callback: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("tog_copy_"))
 async def toggle_copyright(callback: types.CallbackQuery):
     channel_id = int(callback.data.replace("tog_copy_", ""))
-    channel = await get_channel_by_id(channel_id)
-    settings = channel.settings or {}
+    user_id = callback.from_user.id
 
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    channel = await get_channel_by_id(channel_id)
+    if not channel:
+        return
+
+    settings = channel.settings or {}
     settings["show_copyright"] = not settings.get("show_copyright", True)
     await update_channel_settings(channel_id, settings)
     await show_manage_premium_menu(callback, channel_id)
 
 
-# ==================== НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
-
 async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     channel = await get_channel_by_id(channel_id)
+    if not channel:
+        return
+
     settings = channel.settings or {}
 
     btn_ideas = ("✅ " if settings.get("ideas", True) else "❌ ") + t("btn_idea", lang)
@@ -332,10 +412,17 @@ async def toggle_buttons_menu_entry(callback: types.CallbackQuery):
 async def process_toggle_button(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     key, channel_id = parts[1], int(parts[2])
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
 
     channel = await get_channel_by_id(channel_id)
-    settings = channel.settings or {}
+    if not channel:
+        return
 
+    settings = channel.settings or {}
     setting_key = "ideas" if key == "ideas" else "questions_all" if key == "qall" else "reviews"
     settings[setting_key] = not settings.get(setting_key, True)
 
@@ -343,10 +430,12 @@ async def process_toggle_button(callback: types.CallbackQuery):
     await show_buttons_menu(callback, channel_id)
 
 
-# ==================== ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
-
 async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
     user = await get_or_create_user(user_id)
     lang = user.language_code
 
@@ -384,6 +473,10 @@ async def toggle_accepts_questions(callback: types.CallbackQuery):
     channel_id = int(callback.data.replace("prof_acc_", ""))
     user_id = callback.from_user.id
 
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
     admin_rec = await get_admin_record(channel_id, user_id)
     new_accepts = not (admin_rec.accepts_direct_questions if admin_rec else True)
     disp_type = admin_rec.display_type if admin_rec else "anon"
@@ -399,6 +492,10 @@ async def change_display_type(callback: types.CallbackQuery):
     new_disp_type = parts[3]
     user_id = callback.from_user.id
 
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
     admin_rec = await get_admin_record(channel_id, user_id)
     accepts = admin_rec.accepts_direct_questions if admin_rec else True
 
@@ -406,12 +503,16 @@ async def change_display_type(callback: types.CallbackQuery):
     await show_admin_profile_settings(callback, channel_id)
 
 
-# ==================== ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
-
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
     channel_id = int(callback.data.replace("get_inv_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     bot_info = await bot.get_me()
@@ -424,7 +525,12 @@ async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
 
 
 async def show_banned_users_menu(callback: types.CallbackQuery, channel_id: int):
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     bans = await get_banned_users(channel_id)
@@ -457,7 +563,13 @@ async def show_banned_users_entry(callback: types.CallbackQuery):
 async def process_unban_user(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     channel_id, target_user_id = int(parts[2]), int(parts[3])
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await unban_user(channel_id, target_user_id)

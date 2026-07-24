@@ -26,12 +26,9 @@ class SubscriberFSM(StatesGroup):
     choosing_anonymity = State()
     waiting_for_idea = State()
     waiting_for_question_all = State()
-    waiting_for_question_admin = State()
     waiting_for_review_rating = State()
     waiting_for_review_text = State()
 
-
-# ==================== 1. ВХОД ПО ССЫЛКЕ КАНАЛА (c_HASH) ====================
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith("c_")))
 async def open_subscriber_menu(message: types.Message, command: CommandObject, state: FSMContext, bot: Bot):
@@ -93,8 +90,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     await message.answer(welcome_text, reply_markup=kb)
 
-
-# ==================== 2. ВЫБОР АНОНИМНОСТИ ====================
 
 async def ask_anonymity(callback: types.CallbackQuery, state: FSMContext, lang: str):
     username = callback.from_user.username or callback.from_user.first_name
@@ -183,8 +178,6 @@ async def process_anonymity_choice(callback: types.CallbackQuery, state: FSMCont
         await state.set_state(SubscriberFSM.waiting_for_question_all)
 
 
-# ==================== 3. ОТПРАВКА ИДЕИ ИЛИ ВОПРОСА ====================
-
 @router.message(StateFilter(SubscriberFSM.waiting_for_idea, SubscriberFSM.waiting_for_question_all))
 async def receive_suggestion_content(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
@@ -257,8 +250,9 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
                 InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
                 InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
             ])
-            buttons.append(
-                [InlineKeyboardButton(text=t("btn_ban_user", adm_lang), callback_data=f"ban_{channel_id}_{user_id}")])
+            # Используем уточненный префикс ban_user_
+            buttons.append([InlineKeyboardButton(text=t("btn_ban_user", adm_lang),
+                                                 callback_data=f"ban_user_{channel_id}_{user_id}")])
 
             kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -288,7 +282,7 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         channel_obj = await get_channel_by_id(channel_id)
         has_prem = await is_channel_premium(channel_obj)
 
-        if has_prem and channel_obj.auto_reply:
+        if has_prem and channel_obj and channel_obj.auto_reply:
             reply_hdr = t("auto_reply_prefix", lang)
             await message.answer(f"{t('msg_sent_success', lang)}\n\n{reply_hdr}\n{channel_obj.auto_reply}")
         else:
@@ -299,8 +293,6 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     await state.clear()
 
 
-# ==================== 4. ОСТАВИТЬ ОТЗЫВ И ОЦЕНКУ ====================
-
 @router.callback_query(F.data.startswith("sub_review_"))
 async def start_review(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("sub_review_", ""))
@@ -310,8 +302,8 @@ async def start_review(callback: types.CallbackQuery, state: FSMContext):
 
     can_review, days_left = await check_review_cooldown(channel_id, user_id)
     if not can_review:
-        await callback.message.answer(t("review_cooldown_error", lang, days_left=days_left))
-        await callback.answer()
+        # Всплывающее предупреждение alert без повторных спам-кликов
+        await callback.answer(t("review_cooldown_error", lang, days_left=days_left), show_alert=True)
         return
 
     await state.update_data(channel_id=channel_id)

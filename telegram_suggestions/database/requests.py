@@ -4,10 +4,8 @@ from typing import Optional, List, Tuple, Dict, Any
 
 from sqlalchemy import select, func, update, delete
 from telegram_suggestions.database.engine import async_session
-from telegram_suggestions.database.models import User, Channel, ChannelAdmin, Message, ChannelBan
-from telegram_suggestions.database.models import AdminNotification
+from telegram_suggestions.database.models import User, Channel, ChannelAdmin, Message, ChannelBan, AdminNotification
 
-# ==================== ПОЛЬЗОВАТЕЛИ ====================
 
 async def get_or_create_user(user_id: int, language_code: str = "ru") -> User:
     async with async_session() as session:
@@ -25,17 +23,15 @@ async def get_or_create_user(user_id: int, language_code: str = "ru") -> User:
         return user
 
 
-async def set_user_language(user_id: int, language_code: str):
+async def is_user_channel_admin(channel_id: int, user_id: int) -> bool:
+    """Безопасная проверка прав админа перед выполнением действий"""
     async with async_session() as session:
-        stmt = update(User).where(User.id == user_id).values(language_code=language_code)
-        await session.execute(stmt)
-        await session.commit()
-
-
-# ==================== КАНАЛЫ И ПРЕМИУМ ====================
-
-def _generate_unique_hash() -> str:
-    return secrets.token_urlsafe(6)
+        stmt = select(ChannelAdmin).where(
+            ChannelAdmin.channel_id == channel_id,
+            ChannelAdmin.user_id == user_id
+        )
+        res = await session.execute(stmt)
+        return res.scalar_one_or_none() is not None
 
 
 async def create_channel(channel_id: int, owner_id: int) -> Channel:
@@ -47,8 +43,7 @@ async def create_channel(channel_id: int, owner_id: int) -> Channel:
         if existing_channel:
             return existing_channel
 
-        deep_link_hash = _generate_unique_hash()
-
+        deep_link_hash = secrets.token_urlsafe(6)
         channel = Channel(id=channel_id, deep_link_hash=deep_link_hash)
         session.add(channel)
 
@@ -81,17 +76,15 @@ async def get_user_channels(user_id: int) -> List[Channel]:
         return list(res.scalars().all())
 
 
-async def is_channel_premium(channel: Channel) -> bool:
-    """Проверка активности Премиум подписки с учетом даты"""
-    if not channel.is_premium:
+async def is_channel_premium(channel: Optional[Channel]) -> bool:
+    if not channel or not channel.is_premium:
         return False
     if channel.premium_until is None:
-        return True  # Навсегда
+        return True
     return channel.premium_until > datetime.now()
 
 
 async def activate_channel_premium(channel_id: int, plan: str):
-    """Активация подписки с суммированием дней при досрочном продлении"""
     async with async_session() as session:
         stmt = select(Channel).where(Channel.id == channel_id)
         res = await session.execute(stmt)
@@ -112,7 +105,7 @@ async def activate_channel_premium(channel_id: int, plan: str):
         elif plan == "3m":
             until = start_from + timedelta(days=90)
         else:
-            until = None  # Навсегда (Lifetime)
+            until = None
 
         channel.is_premium = True
         channel.premium_until = until
@@ -139,8 +132,6 @@ async def set_channel_auto_reply(channel_id: int, auto_reply_text: Optional[str]
         await session.execute(stmt)
         await session.commit()
 
-
-# ==================== АДМИНЫ ====================
 
 async def add_admin(channel_id: int, user_id: int, is_owner: bool = False) -> bool:
     async with async_session() as session:
@@ -184,8 +175,6 @@ async def update_admin_personal_settings(channel_id: int, user_id: int, accepts:
         await session.execute(stmt)
         await session.commit()
 
-
-# ==================== СООБЩЕНИЯ, ОТЗЫВЫ И РЕЙТИНГ ====================
 
 async def add_message(
     channel_id: int,
@@ -271,8 +260,6 @@ async def check_review_cooldown(channel_id: int, sender_id: int) -> Tuple[bool, 
             return False, days_left
 
 
-# ==================== БАНЫ ====================
-
 async def is_user_banned(channel_id: int, user_id: int) -> bool:
     async with async_session() as session:
         stmt = select(ChannelBan).where(
@@ -284,11 +271,15 @@ async def is_user_banned(channel_id: int, user_id: int) -> bool:
 
 
 async def ban_user(channel_id: int, user_id: int):
+    """Безопасный бан без гонки потоков (TOCTOU)"""
     async with async_session() as session:
         if not await is_user_banned(channel_id, user_id):
-            ban = ChannelBan(channel_id=channel_id, user_id=user_id)
-            session.add(ban)
-            await session.commit()
+            try:
+                ban = ChannelBan(channel_id=channel_id, user_id=user_id)
+                session.add(ban)
+                await session.commit()
+            except Exception:
+                await session.rollback()
 
 
 async def unban_user(channel_id: int, user_id: int):
@@ -307,8 +298,8 @@ async def get_banned_users(channel_id: int) -> List[ChannelBan]:
         res = await session.execute(stmt)
         return list(res.scalars().all())
 
+
 async def add_admin_notification(db_message_id: int, admin_user_id: int, telegram_message_id: int):
-    """Сохранить ID отправленного сообщения админу"""
     async with async_session() as session:
         notif = AdminNotification(
             db_message_id=db_message_id,
@@ -320,22 +311,19 @@ async def add_admin_notification(db_message_id: int, admin_user_id: int, telegra
 
 
 async def get_admin_notifications(db_message_id: int) -> List[AdminNotification]:
-    """Получить все карточки, отправленные админам по конкретному вопросу"""
     async with async_session() as session:
         stmt = select(AdminNotification).where(AdminNotification.db_message_id == db_message_id)
         res = await session.execute(stmt)
         return list(res.scalars().all())
 
+
 async def get_channel_stats(channel_id: int) -> Dict[str, Any]:
-    """Подсчет полной аналитики канала"""
     async with async_session() as session:
-        # Идеи
         res_ideas = await session.execute(
             select(func.count(Message.id)).where(Message.channel_id == channel_id, Message.type == "idea")
         )
         ideas_count = res_ideas.scalar() or 0
 
-        # Вопросы
         res_q = await session.execute(
             select(func.count(Message.id)).where(
                 Message.channel_id == channel_id,
@@ -344,7 +332,6 @@ async def get_channel_stats(channel_id: int) -> Dict[str, Any]:
         )
         questions_count = res_q.scalar() or 0
 
-        # Отзывы и средняя оценка
         res_rev = await session.execute(
             select(func.count(Message.id), func.avg(Message.rating_value)).where(
                 Message.channel_id == channel_id, Message.type == "review"
@@ -354,7 +341,6 @@ async def get_channel_stats(channel_id: int) -> Dict[str, Any]:
         rev_count = rev_count or 0
         rev_avg = round(float(rev_avg), 1) if rev_avg else 0.0
 
-        # Обработанные (отвеченные / опубликованные)
         res_proc = await session.execute(
             select(func.count(Message.id)).where(
                 Message.channel_id == channel_id,
@@ -373,7 +359,6 @@ async def get_channel_stats(channel_id: int) -> Dict[str, Any]:
 
 
 async def get_channel_reviews_for_export(channel_id: int) -> List[Message]:
-    """Выборка всех отзывов для экспорта в CSV"""
     async with async_session() as session:
         stmt = select(Message).where(
             Message.channel_id == channel_id,

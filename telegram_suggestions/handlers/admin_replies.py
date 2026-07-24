@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 
 from telegram_suggestions.database.engine import async_session
 from telegram_suggestions.database.models import Message, Channel
-from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications
+from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications, is_user_channel_admin
 from telegram_suggestions.utils.localization import t
 
 router = Router()
@@ -19,7 +19,6 @@ class AdminReplyFSM(StatesGroup):
 
 
 async def get_sender_display_name(bot: Bot, sender_id: int) -> str:
-    """Получить открытое имя/юзернейм автора для публикации"""
     try:
         chat = await bot.get_chat(sender_id)
         if chat.username:
@@ -64,7 +63,17 @@ async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, actor_name: s
 @router.callback_query(F.data.startswith("rep_priv_"))
 async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
     msg_id = int(callback.data.replace("rep_priv_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    async with async_session() as session:
+        res = await session.execute(select(Message).where(Message.id == msg_id))
+        orig_msg = res.scalar_one_or_none()
+
+    if not orig_msg or not await is_user_channel_admin(orig_msg.channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
@@ -84,16 +93,17 @@ async def cancel_reply(callback: types.CallbackQuery, state: FSMContext):
 async def send_private_reply_to_user(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     msg_id = data["reply_msg_id"]
+    user_id = message.from_user.id
 
-    user = await get_or_create_user(message.from_user.id)
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     async with async_session() as session:
         res = await session.execute(select(Message).where(Message.id == msg_id))
         orig_msg = res.scalar_one_or_none()
 
-    if not orig_msg:
-        await message.answer(t("err_msg_not_found", lang))
+    if not orig_msg or not await is_user_channel_admin(orig_msg.channel_id, user_id):
+        await message.answer(t("err_not_channel_admin", lang))
         await state.clear()
         return
 
@@ -134,7 +144,17 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
 @router.callback_query(F.data.startswith("rep_pub_"))
 async def start_public_reply(callback: types.CallbackQuery, state: FSMContext):
     msg_id = int(callback.data.replace("rep_pub_", ""))
-    user = await get_or_create_user(callback.from_user.id)
+    user_id = callback.from_user.id
+
+    async with async_session() as session:
+        res = await session.execute(select(Message).where(Message.id == msg_id))
+        orig_msg = res.scalar_one_or_none()
+
+    if not orig_msg or not await is_user_channel_admin(orig_msg.channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
@@ -148,16 +168,17 @@ async def start_public_reply(callback: types.CallbackQuery, state: FSMContext):
 async def post_public_reply_to_channel(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     msg_id = data["reply_msg_id"]
+    user_id = message.from_user.id
 
-    user = await get_or_create_user(message.from_user.id)
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     async with async_session() as session:
         res = await session.execute(select(Message).where(Message.id == msg_id))
         orig_msg = res.scalar_one_or_none()
 
-    if not orig_msg:
-        await message.answer(t("err_msg_not_found", lang))
+    if not orig_msg or not await is_user_channel_admin(orig_msg.channel_id, user_id):
+        await message.answer(t("err_not_channel_admin", lang))
         await state.clear()
         return
 
@@ -166,21 +187,27 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
         res_ch = await session.execute(select(Channel).where(Channel.id == orig_msg.channel_id))
         ch_obj = res_ch.scalar_one_or_none()
 
-    has_prem = await is_channel_premium(ch_obj) if ch_obj else False
-    settings = ch_obj.settings if ch_obj else {}
+    if not ch_obj:
+        await message.answer(t("err_channel_not_found", lang))
+        await state.clear()
+        return
+
+    channel_lang = ch_obj.language_code  # Пост формируется на языке КАНАЛА
+
+    has_prem = await is_channel_premium(ch_obj)
+    settings = ch_obj.settings or {}
     show_copyright = settings.get("show_copyright", True)
 
-    bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
+    bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}"
 
-    # Подтягиваем автора в зависимости от анонимности
     if orig_msg.is_anonymous:
-        sender_str = t("anon_question_title", lang)
+        sender_str = t("anon_question_title", channel_lang)
     else:
         author_str = await get_sender_display_name(bot, orig_msg.sender_id)
-        sender_str = t("public_question_title_open", lang, author_str=author_str)
+        sender_str = t("public_question_title_open", channel_lang, author_str=author_str)
 
-    reply_hdr = t("channel_reply_header", lang)
-    ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
+    reply_hdr = t("channel_reply_header", channel_lang)
+    ask_prompt = t("channel_ask_prompt", channel_lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
     post_text = (
         f"{sender_str}\n"
@@ -221,36 +248,43 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 @router.callback_query(F.data.startswith("pub_idea_"))
 async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
     msg_id = int(callback.data.replace("pub_idea_", ""))
-    user = await get_or_create_user(callback.from_user.id)
-    lang = user.language_code
+    user_id = callback.from_user.id
 
     async with async_session() as session:
         res = await session.execute(select(Message).where(Message.id == msg_id))
         orig_msg = res.scalar_one_or_none()
 
-    if not orig_msg:
-        await callback.answer(t("err_msg_not_found", lang))
+    if not orig_msg or not await is_user_channel_admin(orig_msg.channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
         return
+
+    user = await get_or_create_user(user_id)
+    lang = user.language_code
 
     bot_info = await bot.get_me()
     async with async_session() as session:
         res_ch = await session.execute(select(Channel).where(Channel.id == orig_msg.channel_id))
         ch_obj = res_ch.scalar_one_or_none()
 
-    has_prem = await is_channel_premium(ch_obj) if ch_obj else False
-    settings = ch_obj.settings if ch_obj else {}
+    if not ch_obj:
+        await callback.answer(t("err_channel_not_found", lang), show_alert=True)
+        return
+
+    channel_lang = ch_obj.language_code  # Пост формируется на языке КАНАЛА
+
+    has_prem = await is_channel_premium(ch_obj)
+    settings = ch_obj.settings or {}
     show_copyright = settings.get("show_copyright", True)
 
-    bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
+    bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}"
 
-    # Проверка анонимности идеи
     if orig_msg.is_anonymous:
-        idea_hdr = t("idea_post_header_anon", lang)
+        idea_hdr = t("idea_post_header_anon", channel_lang)
     else:
         author_str = await get_sender_display_name(bot, orig_msg.sender_id)
-        idea_hdr = t("idea_post_header_public", lang, author_str=author_str)
+        idea_hdr = t("idea_post_header_public", channel_lang, author_str=author_str)
 
-    idea_prompt = t("idea_suggest_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
+    idea_prompt = t("idea_suggest_prompt", channel_lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
     post_text = f"{idea_hdr}\n\n{orig_msg.text or ''}"
     if idea_prompt:
@@ -283,11 +317,18 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         await callback.message.answer(t("err_publish_failed", lang, error=str(e)))
 
 
-@router.callback_query(F.data.startswith("ban_"))
+# Уточненный префикс ban_user_ против хрупкого роутинга
+@router.callback_query(F.data.startswith("ban_user_"))
 async def ban_from_card(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    channel_id, user_id = int(parts[1]), int(parts[2])
-    admin_user = await get_or_create_user(callback.from_user.id)
+    channel_id, user_id = int(parts[2]), int(parts[3])
+    admin_user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, admin_user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    admin_user = await get_or_create_user(admin_user_id)
     lang = admin_user.language_code
 
     await ban_user(channel_id, user_id)
@@ -304,7 +345,13 @@ async def ban_from_card(callback: types.CallbackQuery):
 async def unban_from_card(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     channel_id, user_id = int(parts[2]), int(parts[3])
-    admin_user = await get_or_create_user(callback.from_user.id)
+    admin_user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, admin_user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    admin_user = await get_or_create_user(admin_user_id)
     lang = admin_user.language_code
 
     await unban_user(channel_id, user_id)
