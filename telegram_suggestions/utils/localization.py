@@ -52,18 +52,18 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "anon_question_title": "🕵️ Анонимный вопрос",
         "public_question_title": "👤 Вопрос от подписчиков",
         "channel_reply_header": "💬 <b>Ответ:</b>",
-        "channel_ask_prompt": "🤖 *Задать свой вопрос: {bot_link}*",
+        "channel_ask_prompt": "🤖 <i>Задать свой вопрос: {bot_link}</i>",
         "idea_post_header": "💡 <b>Идея от подписчика</b>",
-        "idea_suggest_prompt": "🤖 *Предложить свою идею: {bot_link}*",
+        "idea_suggest_prompt": "🤖 <i>Предложить свою идею: {bot_link}</i>",
 
         # Регистрация канала
-        "channel_setup_success": "🎉 <b>Канал «{channel_title}» успешно подключен!</b>\n\n🔗 Ваша уникальная ссылка предложки для подписчиков:\n`{sub_link}`\n\nРазместите эту ссылку в описании канала или в постах!",
+        "channel_setup_success": "🎉 <b>Канал «{channel_title}» успешно подключен!</b>\n\n🔗 Ваша уникальная ссылка предложки для подписчиков:\n<code>{sub_link}</code>\n\nРазместите эту ссылку в описании канала или в постах!",
         "channel_setup_temp_post": "⚙️ <b>Настройка Onward:</b> Администратору нужно нажать кнопку ниже для завершения подключения:",
         "btn_complete_setup": "🔗 Завершить настройку Onward",
         "bot_removed_from_channel": "⚠️ Бот Onward был удален из канала. Прием сообщений временно приостановлен.",
         "err_not_channel_admin": "❌ Ошибка: Вы не являетесь администратором этого канала.",
         "err_check_rights_failed": "❌ Не удалось проверить права. Убедитесь, что бот добавлен в канал.",
-        "reg_success": "🎉 <b>Регистрация завершена!</b>\n\n🔗 Ссылка предложки для вашего канала:\n`{sub_link}`",
+        "reg_success": "🎉 <b>Регистрация завершена!</b>\n\n🔗 Ссылка предложки для вашего канала:\n<code>{sub_link}</code>",
         "err_inv_not_admin": "❌ Ошибка: Чтобы стать админом бота, вы должны сначала стать админом канала в Telegram.",
         "err_channel_not_found": "❌ Канал не найден или бот из него удален.",
         "coadmin_registered_success": "✅ Вы успешно зарегистрированы как администратор этого канала в Onward!",
@@ -72,7 +72,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         # Админ Панель
         "admin_welcome_no_channels": "👋 <b>Добро пожаловать в Onward!</b>\n\nЧтобы начать, добавьте меня в свой Telegram-канал как администратора. Я автоматически сгенерирую ссылку предложки для ваших подписчиков!",
         "admin_panel_welcome": "⚙️ <b>Панель управления Onward</b>\nВыберите канал для настройки:",
-        "admin_channel_manage": "📢 <b>Управление каналом «{ch_title}»</b>\nСтатус: {status}\n\n🔗 <b>Ссылка предложки:</b>\n`{sub_link}`",
+        "admin_channel_manage": "📢 <b>Управление каналом «{ch_title}»</b>\nСтатус: {status}\n\n🔗 <b>Ссылка предложки:</b>\n<code>{sub_link}</code>",
         "status_premium": "⭐ Premium",
         "status_free": "🆓 Free",
         "btn_set_btns": "⚙️ Настройки кнопок",
@@ -102,7 +102,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "disp_name_title": "Имя",
         "disp_username_title": "@username",
         "btn_unban_id": "🔓 Разблокировать (ID: {user_id})",
-        "coadmin_text": "👥 <b>Ссылка для добавления со-админа:</b>\n`{inv_link}`\n\nПерешлите эту ссылку второму администратору. Он должен быть администратором вашего канала в Telegram.",
+        "coadmin_text": "👥 <b>Ссылка для добавления со-админа:</b>\n<code>{inv_link}</code>\n\nПерешлите эту ссылку второму администратору. Он должен быть администратором вашего канала в Telegram.",
         "ban_list_empty": "🎉 В этом канале нет заблокированных пользователей.",
         "ban_list_header": "🚫 <b>Заблокированные пользователи канала:</b>",
         "toast_unbanned": "✅ Пользователь успешно разблокирован!",
@@ -116,7 +116,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "plan_3m_title": "Onward Premium (3 месяца)",
         "plan_life_title": "Onward Premium (Навсегда)",
         "invoice_desc": "Премиум доступ для канала {channel_id}",
-        "pay_success": "🎉 <b>Оплата прошла успешно!</b>\n\nДля канала `{channel_id}` успешно активирован статус <b>Onward Premium</b>.\nСпасибо за поддержку проекта!"
+        "pay_success": "🎉 <b>Оплата прошла успешно!</b>\n\nДля канала <code>{channel_id}</code> успешно активирован статус <b>Onward Premium</b>.\nСпасибо за поддержку проекта!"
     },
 
     "en": {
@@ -166,17 +166,17 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "anon_question_title": "🕵️ Anonymous Question",
         "public_question_title": "👤 Question from Subscribers",
         "channel_reply_header": "💬 <b>Answer:</b>",
-        "channel_ask_prompt": "🤖 *Ask a question or suggest an idea: {bot_link}*",
+        "channel_ask_prompt": "🤖 <i>Ask a question or suggest an idea: {bot_link}</i>",
         "idea_post_header": "💡 <b>Subscriber Idea</b>",
-        "idea_suggest_prompt": "🤖 *Suggest an idea: {bot_link}*",
+        "idea_suggest_prompt": "🤖 <i>Suggest an idea: {bot_link}</i>",
 
-        "channel_setup_success": "🎉 <b>Channel «{channel_title}» successfully connected!</b>\n\n🔗 Your unique suggestion link for subscribers:\n`{sub_link}`\n\nPlace this link in your channel description or posts!",
+        "channel_setup_success": "🎉 <b>Channel «{channel_title}» successfully connected!</b>\n\n🔗 Your unique suggestion link for subscribers:\n<code>{sub_link}</code>\n\nPlace this link in your channel description or posts!",
         "channel_setup_temp_post": "⚙️ <b>Onward Setup:</b> The administrator needs to press the button below to complete setup:",
         "btn_complete_setup": "🔗 Complete Onward Setup",
         "bot_removed_from_channel": "⚠️ The Onward bot was removed from the channel. Receiving messages paused.",
         "err_not_channel_admin": "❌ Error: You are not an administrator of this channel.",
         "err_check_rights_failed": "❌ Could not verify permissions. Ensure the bot is added to the channel.",
-        "reg_success": "🎉 <b>Registration complete!</b>\n\n🔗 Suggestion link for your channel:\n`{sub_link}`",
+        "reg_success": "🎉 <b>Registration complete!</b>\n\n🔗 Suggestion link for your channel:\n<code>{sub_link}</code>",
         "err_inv_not_admin": "❌ Error: To become a bot admin, you must first be an admin of the channel in Telegram.",
         "err_channel_not_found": "❌ Channel not found or bot was removed.",
         "coadmin_registered_success": "✅ You have been successfully registered as a channel admin in Onward!",
@@ -184,7 +184,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         "admin_welcome_no_channels": "👋 <b>Welcome to Onward!</b>\n\nTo start, add me as an administrator to your Telegram channel. I will automatically generate a suggestion box link for your subscribers!",
         "admin_panel_welcome": "⚙️ <b>Onward Control Panel</b>\nSelect a channel to configure:",
-        "admin_channel_manage": "📢 <b>Channel Management «{ch_title}»</b>\nStatus: {status}\n\n🔗 <b>Suggestion link:</b>\n`{sub_link}`",
+        "admin_channel_manage": "📢 <b>Channel Management «{ch_title}»</b>\nStatus: {status}\n\n🔗 <b>Suggestion link:</b>\n<code>{sub_link}</code>",
         "status_premium": "⭐ Premium",
         "status_free": "🆓 Free",
         "btn_set_btns": "⚙️ Button settings",
@@ -214,7 +214,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "disp_name_title": "Name",
         "disp_username_title": "@username",
         "btn_unban_id": "🔓 Unban (ID: {user_id})",
-        "coadmin_text": "👥 <b>Link to add a co-admin:</b>\n`{inv_link}`\n\nForward this link to another administrator. They must be an admin of your Telegram channel.",
+        "coadmin_text": "👥 <b>Link to add a co-admin:</b>\n<code>{inv_link}</code>\n\nForward this link to another administrator. They must be an admin of your Telegram channel.",
         "ban_list_empty": "🎉 There are no banned users in this channel.",
         "ban_list_header": "🚫 <b>Banned users for this channel:</b>",
         "toast_unbanned": "✅ User successfully unbanned!",
@@ -227,7 +227,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "plan_3m_title": "Onward Premium (3 Months)",
         "plan_life_title": "Onward Premium (Lifetime)",
         "invoice_desc": "Premium access for channel {channel_id}",
-        "pay_success": "🎉 <b>Payment successful!</b>\n\n<b>Onward Premium</b> status is now active for channel `{channel_id}`.\nThank you for supporting the project!"
+        "pay_success": "🎉 <b>Payment successful!</b>\n\n<b>Onward Premium</b> status is now active for channel <code>{channel_id}</code>.\nThank you for supporting the project!"
     },
 
     "hi": {
@@ -290,7 +290,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "disp_name_title": "नाम",
         "disp_username_title": "@username",
         "btn_unban_id": "🔓 अनब्लॉक (ID: {user_id})",
-        "coadmin_text": "👥 <b>लिंक:</b>\n`{inv_link}`",
+        "coadmin_text": "👥 <b>लिंक:</b>\n<code>{inv_link}</code>",
         "ban_list_empty": "🎉 कोई ब्लॉक यूजर नहीं है।",
         "ban_list_header": "🚫 <b>ब्लॉक यूजर:</b>",
         "toast_unbanned": "✅ अनब्लॉक कर दिया गया!",
@@ -365,7 +365,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "disp_name_title": "Nombre",
         "disp_username_title": "@username",
         "btn_unban_id": "🔓 Desbloquear (ID: {user_id})",
-        "coadmin_text": "👥 <b>Enlace:</b>\n`{inv_link}`",
+        "coadmin_text": "👥 <b>Enlace:</b>\n<code>{inv_link}</code>",
         "ban_list_empty": "🎉 No hay usuarios bloqueados.",
         "ban_list_header": "🚫 <b>Usuarios bloqueados:</b>",
         "toast_unbanned": "✅ ¡Usuario desbloqueado!",
