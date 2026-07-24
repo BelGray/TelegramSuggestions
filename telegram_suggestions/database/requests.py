@@ -91,25 +91,31 @@ async def is_channel_premium(channel: Channel) -> bool:
 
 
 async def activate_channel_premium(channel_id: int, plan: str):
-    """Активация подписки с точным расчетом даты окончания"""
+    """Активация подписки с суммированием дней при досрочном продлении"""
     async with async_session() as session:
+        stmt = select(Channel).where(Channel.id == channel_id)
+        res = await session.execute(stmt)
+        channel = res.scalar_one_or_none()
+
+        if not channel:
+            return
+
         now = datetime.now()
+        start_from = channel.premium_until if (channel.is_premium and channel.premium_until and channel.premium_until > now) else now
+
         if plan == "1d":
-            until = now + timedelta(days=1)
+            until = start_from + timedelta(days=1)
         elif plan == "7d":
-            until = now + timedelta(days=7)
+            until = start_from + timedelta(days=7)
         elif plan == "1m":
-            until = now + timedelta(days=30)
+            until = start_from + timedelta(days=30)
         elif plan == "3m":
-            until = now + timedelta(days=90)
+            until = start_from + timedelta(days=90)
         else:
             until = None  # Навсегда (Lifetime)
 
-        stmt = update(Channel).where(Channel.id == channel_id).values(
-            is_premium=True,
-            premium_until=until
-        )
-        await session.execute(stmt)
+        channel.is_premium = True
+        channel.premium_until = until
         await session.commit()
 
 
