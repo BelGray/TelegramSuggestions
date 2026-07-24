@@ -19,16 +19,18 @@ router = Router()
 
 # ==================== 1. ГЛАВНОЕ МЕНЮ АДМИНА ====================
 
-@router.message(Command("admin"))
-@router.message(Command("start"))
-async def open_admin_panel(message: types.Message, bot: Bot):
-    user_id = message.from_user.id
-    user = await get_or_create_user(user_id, message.from_user.language_code)
+async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
+    """Отрисовка списка каналов админа (поддерживает и Message, и CallbackQuery)"""
+    user = await get_or_create_user(user_id)
     lang = user.language_code
 
     channels = await get_user_channels(user_id)
     if not channels:
-        await message.answer(t("admin_welcome_no_channels", lang), parse_mode="Markdown")
+        text = t("admin_welcome_no_channels", lang)
+        if isinstance(event_obj, types.Message):
+            await event_obj.answer(text, parse_mode="Markdown")
+        else:
+            await event_obj.message.edit_text(text, parse_mode="Markdown")
         return
 
     kb_buttons = []
@@ -42,7 +44,24 @@ async def open_admin_panel(message: types.Message, bot: Bot):
         kb_buttons.append([InlineKeyboardButton(text=f"📢 {title}", callback_data=f"adm_ch_{ch.id}")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
-    await message.answer(t("admin_panel_welcome", lang), reply_markup=kb, parse_mode="Markdown")
+    text = t("admin_panel_welcome", lang)
+
+    if isinstance(event_obj, types.Message):
+        await event_obj.answer(text, reply_markup=kb, parse_mode="Markdown")
+    else:
+        await event_obj.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
+
+@router.message(Command("admin"))
+@router.message(Command("start"))
+async def open_admin_panel(message: types.Message, bot: Bot):
+    await show_admin_channels_list(message, message.from_user.id, bot)
+
+
+@router.callback_query(F.data == "back_channels")
+async def back_to_channels(callback: types.CallbackQuery, bot: Bot):
+    await show_admin_channels_list(callback, callback.from_user.id, bot)
+    await callback.answer()
 
 
 # ==================== 2. МЕНЮ УПРАВЛЕНИЯ КАНАЛОМ ====================
@@ -76,11 +95,6 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
 
     text = t("admin_channel_manage", lang, ch_title=ch_title, status=status_str, sub_link=sub_link)
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-
-
-@router.callback_query(F.data == "back_channels")
-async def back_to_channels(callback: types.CallbackQuery, bot: Bot):
-    await open_admin_panel(callback.message, bot)
 
 
 # ==================== 3. НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
