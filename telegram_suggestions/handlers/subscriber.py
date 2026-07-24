@@ -1,3 +1,4 @@
+import logging
 from aiogram import Router, Bot, F, types
 from aiogram.filters import CommandStart, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -85,7 +86,7 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     welcome_text = channel.welcome_message or t("sub_menu_header", lang, channel_title=channel_title,
                                                 rating_str=rating_str)
-    await message.answer(welcome_text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(welcome_text, reply_markup=kb)
 
 
 # ==================== 2. ВЫБОР АНОНИМНОСТИ ====================
@@ -191,7 +192,7 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     user = await get_or_create_user(user_id, message.from_user.language_code)
     lang = user.language_code
 
-    text = message.text or message.caption
+    text = message.text or message.caption or ""
     media_file_id, media_type = None, None
 
     if message.photo:
@@ -254,15 +255,18 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
             kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
             if media_type == "photo":
-                await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text, reply_markup=kb,
-                                     parse_mode="Markdown")
+                await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text, reply_markup=kb)
             elif media_type == "video":
-                await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text, reply_markup=kb,
-                                     parse_mode="Markdown")
+                await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text, reply_markup=kb)
+            elif media_type == "voice":
+                await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text, reply_markup=kb)
+            elif media_type == "document":
+                await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
+                                        reply_markup=kb)
             else:
-                await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb, parse_mode="Markdown")
-        except Exception:
-            pass
+                await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
+        except Exception as e:
+            logging.error(f"Ошибка отправки сообщения админу {adm_id}: {e}")
 
     await message.answer(t("msg_sent_success", lang))
     await state.clear()
