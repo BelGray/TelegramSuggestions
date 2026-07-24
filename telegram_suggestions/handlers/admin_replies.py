@@ -1,3 +1,4 @@
+import logging
 from aiogram import Router, Bot, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -6,7 +7,7 @@ from sqlalchemy import select, update
 
 from telegram_suggestions.database.engine import async_session
 from telegram_suggestions.database.models import Message, Channel
-from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium
+from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications
 from telegram_suggestions.utils.localization import t
 
 router = Router()
@@ -17,6 +18,32 @@ class AdminReplyFSM(StatesGroup):
     waiting_for_public_reply = State()
 
 
+async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, action_key: str, answer_text: str, bot: Bot):
+    """Синхронизация и обновление карточек у всех админов канала"""
+    notifications = await get_admin_notifications(db_msg_id)
+    actor_user = await get_or_create_user(actor_user_id)
+    actor_name = actor_user.first_name or f"Admin {actor_user.id}"
+
+    for notif in notifications:
+        try:
+            adm = await get_or_create_user(notif.admin_user_id)
+            lang = adm.language_code
+
+            action_str = t(action_key, lang)
+            card_text = t("admin_card_processed", lang, actor_name=actor_name, action_str=action_str, answer_text=answer_text)
+
+            # Обновляем текст и убираем кнопки
+            if notif.admin_user_id == actor_user_id:
+                await bot.edit_message_caption(chat_id=notif.admin_user_id, message_id=notif.telegram_message_id, caption=card_text, reply_markup=None)
+            else:
+                await bot.edit_message_caption(chat_id=notif.admin_user_id, message_id=notif.telegram_message_id, caption=card_text, reply_markup=None)
+        except Exception:
+            try:
+                await bot.edit_message_text(chat_id=notif.admin_user_id, message_id=notif.telegram_message_id, text=card_text, reply_markup=None)
+            except Exception as e:
+                logging.error(f"Не удалось обновить карточку у админа {notif.admin_user_id}: {e}")
+
+
 @router.callback_query(F.data.startswith("rep_priv_"))
 async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
     msg_id = int(callback.data.replace("rep_priv_", ""))
@@ -24,8 +51,7 @@ async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
     await callback.message.answer(t("admin_reply_priv_prompt", lang), reply_markup=kb)
     await state.set_state(AdminReplyFSM.waiting_for_private_reply)
     await callback.answer()
@@ -77,6 +103,9 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
             await session.execute(update(Message).where(Message.id == msg_id).values(status="answered"))
             await session.commit()
 
+        # Синхронизируем карточки у ВСЕХ админов
+        await sync_all_admin_cards(msg_id, message.from_user.id, "action_priv_reply", message.text or "[Media]", bot)
+
         await message.answer(t("reply_sent_to_user_success", lang))
     except Exception:
         await message.answer(t("err_cant_reply", lang))
@@ -91,8 +120,7 @@ async def start_public_reply(callback: types.CallbackQuery, state: FSMContext):
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
     await callback.message.answer(t("admin_reply_pub_prompt", lang), reply_markup=kb)
     await state.set_state(AdminReplyFSM.waiting_for_public_reply)
     await callback.answer()
@@ -128,8 +156,6 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 
     sender_str = t("anon_question_title", lang) if orig_msg.is_anonymous else t("public_question_title", lang)
     reply_hdr = t("channel_reply_header", lang)
-
-    # Отключение копирайта бота для Премиум-каналов
     ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
     post_text = (
@@ -146,14 +172,16 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
-            await bot.send_message(chat_id=orig_msg.sender_id,
-                                   text=t("sub_published_in_channel", sender_user.language_code))
+            await bot.send_message(chat_id=orig_msg.sender_id, text=t("sub_published_in_channel", sender_user.language_code))
         except Exception:
             pass
 
         async with async_session() as session:
             await session.execute(update(Message).where(Message.id == msg_id).values(status="published"))
             await session.commit()
+
+        # Синхронизируем карточки у ВСЕХ админов
+        await sync_all_admin_cards(msg_id, message.from_user.id, "action_pub_reply", message.text or "", bot)
 
         await message.answer(t("post_published_success", lang))
     except Exception as e:
@@ -211,6 +239,9 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         async with async_session() as session:
             await session.execute(update(Message).where(Message.id == msg_id).values(status="published"))
             await session.commit()
+
+        # Синхронизируем карточки у ВСЕХ админов
+        await sync_all_admin_cards(msg_id, callback.from_user.id, "action_published_idea", orig_msg.text or "[Media]", bot)
 
         await callback.answer(t("post_published_success", lang))
     except Exception as e:

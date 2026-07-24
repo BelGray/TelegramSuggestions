@@ -5,7 +5,7 @@ from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy import select, func, update, delete
 from telegram_suggestions.database.engine import async_session
 from telegram_suggestions.database.models import User, Channel, ChannelAdmin, Message, ChannelBan
-
+from telegram_suggestions.database.models import AdminNotification
 
 # ==================== ПОЛЬЗОВАТЕЛИ ====================
 
@@ -294,5 +294,24 @@ async def unban_user(channel_id: int, user_id: int):
 async def get_banned_users(channel_id: int) -> List[ChannelBan]:
     async with async_session() as session:
         stmt = select(ChannelBan).where(ChannelBan.channel_id == channel_id)
+        res = await session.execute(stmt)
+        return list(res.scalars().all())
+
+async def add_admin_notification(db_message_id: int, admin_user_id: int, telegram_message_id: int):
+    """Сохранить ID отправленного сообщения админу"""
+    async with async_session() as session:
+        notif = AdminNotification(
+            db_message_id=db_message_id,
+            admin_user_id=admin_user_id,
+            telegram_message_id=telegram_message_id
+        )
+        session.add(notif)
+        await session.commit()
+
+
+async def get_admin_notifications(db_message_id: int) -> List[AdminNotification]:
+    """Получить все карточки, отправленные админам по конкретному вопросу"""
+    async with async_session() as session:
+        stmt = select(AdminNotification).where(AdminNotification.db_message_id == db_message_id)
         res = await session.execute(stmt)
         return list(res.scalars().all())

@@ -14,7 +14,8 @@ from telegram_suggestions.database.requests import (
     check_review_cooldown,
     is_user_banned,
     add_message,
-    is_channel_premium
+    is_channel_premium,
+    add_admin_notification
 )
 from telegram_suggestions.utils.localization import t
 
@@ -234,45 +235,54 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         admins_list = await get_channel_admins(channel_id)
         target_admins = [a.user_id for a in admins_list]
 
-    for adm_id in target_admins:
-        try:
-            adm_user = await get_or_create_user(adm_id)
-            adm_lang = adm_user.language_code
+        # Внутри receive_suggestion_content в файле subscriber.py:
+        for adm_id in target_admins:
+            try:
+                adm_user = await get_or_create_user(adm_id)
+                adm_lang = adm_user.language_code
 
-            media_txt = t("media_placeholder", adm_lang)
-            admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
-                                text=text or media_txt) if msg_type == "idea" else t("admin_new_question", adm_lang,
-                                                                                     channel_title=ch_title,
-                                                                                     sender_info=sender_info,
-                                                                                     text=text or media_txt)
+                media_txt = t("media_placeholder", adm_lang)
+                admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
+                                    text=text or media_txt) if msg_type == "idea" else t("admin_new_question", adm_lang,
+                                                                                         channel_title=ch_title,
+                                                                                         sender_info=sender_info,
+                                                                                         text=text or media_txt)
 
-            buttons = []
-            if msg_type == "idea":
-                buttons.append(
-                    [InlineKeyboardButton(text=t("btn_publish_idea", adm_lang), callback_data=f"pub_idea_{db_msg.id}")])
+                buttons = []
+                if msg_type == "idea":
+                    buttons.append([InlineKeyboardButton(text=t("btn_publish_idea", adm_lang),
+                                                         callback_data=f"pub_idea_{db_msg.id}")])
 
-            buttons.append([
-                InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
-                InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
-            ])
-            buttons.append(
-                [InlineKeyboardButton(text=t("btn_ban_user", adm_lang), callback_data=f"ban_{channel_id}_{user_id}")])
+                buttons.append([
+                    InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
+                    InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
+                ])
+                buttons.append([InlineKeyboardButton(text=t("btn_ban_user", adm_lang),
+                                                     callback_data=f"ban_{channel_id}_{user_id}")])
 
-            kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+                kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-            if media_type == "photo":
-                await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text, reply_markup=kb)
-            elif media_type == "video":
-                await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text, reply_markup=kb)
-            elif media_type == "voice":
-                await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text, reply_markup=kb)
-            elif media_type == "document":
-                await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
-                                        reply_markup=kb)
-            else:
-                await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
-        except Exception as e:
-            logging.error(f"Ошибка отправки сообщения админу {adm_id}: {e}")
+                if media_type == "photo":
+                    sent_m = await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text,
+                                                  reply_markup=kb)
+                elif media_type == "video":
+                    sent_m = await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text,
+                                                  reply_markup=kb)
+                elif media_type == "voice":
+                    sent_m = await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text,
+                                                  reply_markup=kb)
+                elif media_type == "document":
+                    sent_m = await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
+                                                     reply_markup=kb)
+                else:
+                    sent_m = await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
+
+                # Сохраняем ID отправленного сообщения для синхронизации
+                if sent_m:
+                    await add_admin_notification(db_msg.id, adm_id, sent_m.message_id)
+
+            except Exception as e:
+                logging.error(f"Ошибка отправки сообщения админу {adm_id}: {e}")
 
     # Уведомление об успешной отправке + Автоответ если включен Премиум
     channel_obj = await get_channel_by_id(channel_id)
