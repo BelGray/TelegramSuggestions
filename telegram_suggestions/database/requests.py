@@ -94,12 +94,16 @@ async def activate_channel_premium(channel_id: int, plan: str):
     """Активация подписки с точным расчетом даты окончания"""
     async with async_session() as session:
         now = datetime.now()
-        if plan == "1m":
+        if plan == "1d":
+            until = now + timedelta(days=1)
+        elif plan == "7d":
+            until = now + timedelta(days=7)
+        elif plan == "1m":
             until = now + timedelta(days=30)
         elif plan == "3m":
             until = now + timedelta(days=90)
         else:
-            until = None  # Навсегда
+            until = None  # Навсегда (Lifetime)
 
         stmt = update(Channel).where(Channel.id == channel_id).values(
             is_premium=True,

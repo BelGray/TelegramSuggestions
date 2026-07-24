@@ -16,13 +16,14 @@ async def show_premium_options(callback: types.CallbackQuery):
     text = t("premium_menu_text", lang)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("btn_plan_1d", lang), callback_data=f"buy_prem_1d_{channel_id}")],
+        [InlineKeyboardButton(text=t("btn_plan_7d", lang), callback_data=f"buy_prem_7d_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_plan_1m", lang), callback_data=f"buy_prem_1m_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_plan_3m", lang), callback_data=f"buy_prem_3m_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_plan_life", lang), callback_data=f"buy_prem_life_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
     ])
 
-    # Добавлен пропущенный параметр reply_markup=kb
     await callback.message.edit_text(text, reply_markup=kb)
 
 
@@ -33,7 +34,13 @@ async def send_stars_invoice(callback: types.CallbackQuery, bot: Bot):
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
-    if plan == "1m":
+    if plan == "1d":
+        title = t("plan_1d_title", lang)
+        stars_amount = 5
+    elif plan == "7d":
+        title = t("plan_7d_title", lang)
+        stars_amount = 20
+    elif plan == "1m":
         title = t("plan_1m_title", lang)
         stars_amount = 50
     elif plan == "3m":
@@ -50,7 +57,7 @@ async def send_stars_invoice(callback: types.CallbackQuery, bot: Bot):
         title=title,
         description=t("invoice_desc", lang, channel_id=channel_id),
         payload=f"stars_pay_{plan}_{channel_id}",
-        provider_token="",  # Пустая строка для оплаты Звёздами Telegram
+        provider_token="",
         currency="XTR",
         prices=prices
     )
