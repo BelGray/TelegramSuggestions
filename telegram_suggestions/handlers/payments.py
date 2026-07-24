@@ -1,11 +1,11 @@
 from aiogram import Router, Bot, F, types
 from aiogram.types import LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton, PreCheckoutQuery
 
-from ..database.requests import get_or_create_user
-from ..database.engine import async_session
-from ..database.models import Channel
+from telegram_suggestions.database.requests import get_or_create_user
+from telegram_suggestions.database.engine import async_session
+from telegram_suggestions.database.models import Channel
 from sqlalchemy import update
-from ..utils.localization import t
+from telegram_suggestions.utils.localization import t
 
 router = Router()
 

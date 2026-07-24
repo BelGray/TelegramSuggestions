@@ -2,7 +2,7 @@ from aiogram import Router, Bot, F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from ..database.requests import (
+from telegram_suggestions.database.requests import (
     get_or_create_user,
     get_user_channels,
     get_channel_by_id,
@@ -12,7 +12,7 @@ from ..database.requests import (
     get_banned_users,
     unban_user
 )
-from ..utils.localization import t
+from telegram_suggestions.utils.localization import t
 
 router = Router()
 

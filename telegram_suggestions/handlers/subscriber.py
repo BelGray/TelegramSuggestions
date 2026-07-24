@@ -2,19 +2,18 @@ from aiogram import Router, Bot, F, types
 from aiogram.filters import CommandStart, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from ..database.requests import (
+from telegram_suggestions.database.requests import (
     get_or_create_user,
     get_channel_by_hash,
-    get_channel_by_id,
     get_channel_rating,
     get_channel_admins,
     check_review_cooldown,
     is_user_banned,
     add_message
 )
-from ..utils.localization import t
+from telegram_suggestions.utils.localization import t
 
 router = Router()
 
@@ -51,14 +50,13 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
         await message.answer(t("user_banned_error", lang))
         return
 
-    # Пробуем получить название канала через TG API
     try:
         chat = await bot.get_chat(channel.id)
         channel_title = chat.title or "Канал"
     except Exception:
         channel_title = "Канал"
 
-    # Считаем рейтинг
+    # Подсчет рейтинга
     rating_count, rating_avg = await get_channel_rating(channel.id)
     rating_str = ""
     if rating_count >= 5:
@@ -75,7 +73,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
         keyboard_buttons.append(
             [InlineKeyboardButton(text=t("btn_question_all", lang), callback_data=f"sub_qall_{channel.id}")])
 
-    # Проверяем, есть ли админы, принимающие личные вопросы
     admins = await get_channel_admins(channel.id)
     active_admins = [a for a in admins if a.accepts_direct_questions]
     if active_admins:
@@ -88,7 +85,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     kb = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-    # Заголовок
     welcome_text = channel.welcome_message or t("sub_menu_header", lang, channel_title=channel_title,
                                                 rating_str=rating_str)
     await message.answer(welcome_text, reply_markup=kb, parse_mode="Markdown")
@@ -106,7 +102,6 @@ async def ask_anonymity(callback: types.CallbackQuery, state: FSMContext, lang: 
     await state.set_state(SubscriberFSM.choosing_anonymity)
 
 
-# Callback для "Предложить идею"
 @router.callback_query(F.data.startswith("sub_idea_"))
 async def start_idea(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("sub_idea_", ""))
@@ -115,7 +110,6 @@ async def start_idea(callback: types.CallbackQuery, state: FSMContext):
     await ask_anonymity(callback, state, user.language_code)
 
 
-# Callback для "Вопрос всем"
 @router.callback_query(F.data.startswith("sub_qall_"))
 async def start_question_all(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("sub_qall_", ""))
@@ -124,7 +118,6 @@ async def start_question_all(callback: types.CallbackQuery, state: FSMContext):
     await ask_anonymity(callback, state, user.language_code)
 
 
-# Callback для выбора конкретного админа
 @router.callback_query(F.data.startswith("sub_qadmin_"))
 async def choose_admin_list(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     channel_id = int(callback.data.replace("sub_qadmin_", ""))
@@ -169,7 +162,6 @@ async def admin_picked(callback: types.CallbackQuery, state: FSMContext):
     await ask_anonymity(callback, state, user.language_code)
 
 
-# Обработка выбора Анонимно/Открыто
 @router.callback_query(SubscriberFSM.choosing_anonymity, F.data.startswith("anon_"))
 async def process_anonymity_choice(callback: types.CallbackQuery, state: FSMContext):
     is_anon = callback.data == "anon_true"
@@ -201,7 +193,6 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     user = await get_or_create_user(user_id, message.from_user.language_code)
     lang = user.language_code
 
-    # Определение медиа
     text = message.text or message.caption
     media_file_id, media_type = None, None
 
@@ -214,7 +205,6 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     elif message.document:
         media_file_id, media_type = message.document.file_id, "document"
 
-    # Сохраняем в БД
     db_msg = await add_message(
         channel_id=channel_id,
         sender_id=user_id,
@@ -226,45 +216,46 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         target_admin_id=target_admin_id
     )
 
-    # Формируем сообщение для отправки админу
-    sender_info = "🕵️ Анонимно" if is_anon else f"@{message.from_user.username or message.from_user.first_name}"
-
     try:
         chat = await bot.get_chat(channel_id)
         ch_title = chat.title or "Канал"
     except Exception:
         ch_title = "Канал"
 
-    admin_card_text = (
-        f"📥 **Новое сообщение для канала [{ch_title}]**\n"
-        f"📌 **Тип:** {'💡 Идея' if msg_type == 'idea' else '❓ Вопрос'}\n"
-        f"👤 **Автор:** {sender_info}\n\n"
-        f"💬 {text or '[Медиафайл]'}"
-    )
+    sender_info = "🕵️ Анонимно" if is_anon else f"@{message.from_user.username or message.from_user.first_name}"
 
-    # Кнопки для карточки админа
-    buttons = []
-    if msg_type == "idea":
-        buttons.append([InlineKeyboardButton(text=t("btn_publish_idea", "ru"), callback_data=f"pub_idea_{db_msg.id}")])
-
-    buttons.append([
-        InlineKeyboardButton(text=t("btn_reply_private", "ru"), callback_data=f"rep_priv_{db_msg.id}"),
-        InlineKeyboardButton(text=t("btn_reply_public", "ru"), callback_data=f"rep_pub_{db_msg.id}")
-    ])
-    buttons.append([InlineKeyboardButton(text=t("btn_ban_user", "ru"), callback_data=f"ban_{channel_id}_{user_id}")])
-
-    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    # Определяем адресатов
     if target_admin_id:
         target_admins = [target_admin_id]
     else:
         admins_list = await get_channel_admins(channel_id)
         target_admins = [a.user_id for a in admins_list]
 
-    # Рассылаем админам
+    # Рассылка админам с учетом ИХ языка
     for adm_id in target_admins:
         try:
+            adm_user = await get_or_create_user(adm_id)
+            adm_lang = adm_user.language_code
+
+            admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
+                                text=text or "[Медиафайл]") if msg_type == "idea" else t("admin_new_question", adm_lang,
+                                                                                         channel_title=ch_title,
+                                                                                         sender_info=sender_info,
+                                                                                         text=text or "[Медиафайл]")
+
+            buttons = []
+            if msg_type == "idea":
+                buttons.append(
+                    [InlineKeyboardButton(text=t("btn_publish_idea", adm_lang), callback_data=f"pub_idea_{db_msg.id}")])
+
+            buttons.append([
+                InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
+                InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
+            ])
+            buttons.append(
+                [InlineKeyboardButton(text=t("btn_ban_user", adm_lang), callback_data=f"ban_{channel_id}_{user_id}")])
+
+            kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
             if media_type == "photo":
                 await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text, reply_markup=kb,
                                      parse_mode="Markdown")
@@ -289,7 +280,6 @@ async def start_review(callback: types.CallbackQuery, state: FSMContext):
     user = await get_or_create_user(user_id)
     lang = user.language_code
 
-    # Проверка кулдауна в 1 неделю
     can_review, days_left = await check_review_cooldown(channel_id, user_id)
     if not can_review:
         await callback.message.answer(t("review_cooldown_error", lang, days_left=days_left))

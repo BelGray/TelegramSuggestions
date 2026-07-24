@@ -10,7 +10,7 @@ from ..database.requests import (
     get_channel_by_id,
     add_admin
 )
-from ..utils.localization import t
+from telegram_suggestions.utils.localization import t
 
 router = Router()
 
