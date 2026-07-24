@@ -1,5 +1,7 @@
 from aiogram import Router, Bot, F, types
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from telegram_suggestions.database.requests import (
@@ -10,14 +12,23 @@ from telegram_suggestions.database.requests import (
     get_admin_record,
     update_admin_personal_settings,
     get_banned_users,
-    unban_user
+    unban_user,
+    is_channel_premium,
+    set_channel_welcome_message,
+    set_channel_auto_reply
 )
 from telegram_suggestions.utils.localization import t
 
 router = Router()
 
 
-async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
+class AdminSettingsFSM(StatesGroup):
+    waiting_for_welcome_msg = State()
+    waiting_for_auto_reply = State()
+
+
+async def show_admin_channels_list(event_obj, user_id: int, bot: Bot, state: FSMContext):
+    await state.clear()
     user = await get_or_create_user(user_id)
     lang = user.language_code
 
@@ -51,18 +62,19 @@ async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
 
 @router.message(Command("admin"))
 @router.message(Command("start"))
-async def open_admin_panel(message: types.Message, bot: Bot):
-    await show_admin_channels_list(message, message.from_user.id, bot)
+async def open_admin_panel(message: types.Message, bot: Bot, state: FSMContext):
+    await show_admin_channels_list(message, message.from_user.id, bot, state)
 
 
 @router.callback_query(F.data == "back_channels")
-async def back_to_channels(callback: types.CallbackQuery, bot: Bot):
-    await show_admin_channels_list(callback, callback.from_user.id, bot)
+async def back_to_channels(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+    await show_admin_channels_list(callback, callback.from_user.id, bot, state)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("adm_ch_"))
-async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
+async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+    await state.clear()
     channel_id = int(callback.data.replace("adm_ch_", ""))
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
@@ -77,20 +89,137 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
     except Exception:
         ch_title = "Channel"
 
-    status_str = t("status_premium", lang) if channel.is_premium else t("status_free", lang)
+    has_prem = await is_channel_premium(channel)
+    status_str = t("status_premium", lang) if has_prem else t("status_free", lang)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    buttons = [
         [InlineKeyboardButton(text=t("btn_set_btns", lang), callback_data=f"set_btns_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_set_profile", lang), callback_data=f"set_profile_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_add_coadmin", lang), callback_data=f"get_inv_{channel_id}")],
-        [InlineKeyboardButton(text=t("btn_ban_list", lang), callback_data=f"ban_list_{channel_id}")],
-        [InlineKeyboardButton(text=t("btn_premium", lang), callback_data=f"sub_premium_{channel_id}")],
-        [InlineKeyboardButton(text=t("btn_back_channels", lang), callback_data="back_channels")]
-    ])
+        [InlineKeyboardButton(text=t("btn_ban_list", lang), callback_data=f"ban_list_{channel_id}")]
+    ]
 
+    if has_prem:
+        buttons.append(
+            [InlineKeyboardButton(text=t("btn_manage_premium", lang), callback_data=f"prem_manage_{channel_id}")])
+    else:
+        buttons.append([InlineKeyboardButton(text=t("btn_premium", lang), callback_data=f"sub_premium_{channel_id}")])
+
+    buttons.append([InlineKeyboardButton(text=t("btn_back_channels", lang), callback_data="back_channels")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     text = t("admin_channel_manage", lang, ch_title=ch_title, status=status_str, sub_link=sub_link)
     await callback.message.edit_text(text, reply_markup=kb)
 
+
+# ==================== УПРАВЛЕНИЕ ПРЕМИУМ НАСТРОЙКАМИ ====================
+
+@router.callback_query(F.data.startswith("prem_manage_"))
+async def manage_premium_menu(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("prem_manage_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    channel = await get_channel_by_id(channel_id)
+    settings = channel.settings or {}
+    show_copy = settings.get("show_copyright", True)
+
+    btn_copy_status = t("btn_copyright_on", lang) if show_copy else t("btn_copyright_off", lang)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("btn_set_welcome", lang), callback_data=f"set_welc_{channel_id}")],
+        [InlineKeyboardButton(text=t("btn_set_autoreply", lang), callback_data=f"set_autorep_{channel_id}")],
+        [InlineKeyboardButton(text=btn_copy_status, callback_data=f"tog_copy_{channel_id}")],
+        [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
+    ])
+
+    await callback.message.edit_text(t("premium_settings_header", lang), reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("set_welc_"))
+async def prompt_welcome(callback: types.CallbackQuery, state: FSMContext):
+    channel_id = int(callback.data.replace("set_welc_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    await state.update_data(channel_id=channel_id)
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t("btn_reset", lang), callback_data=f"reset_welc_{channel_id}")]])
+    await callback.message.edit_text(t("prompt_enter_welcome", lang), reply_markup=kb)
+    await state.set_state(AdminSettingsFSM.waiting_for_welcome_msg)
+
+
+@router.message(AdminSettingsFSM.waiting_for_welcome_msg)
+async def process_save_welcome(message: types.Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    channel_id = data["channel_id"]
+    user = await get_or_create_user(message.from_user.id)
+    lang = user.language_code
+
+    await set_channel_welcome_message(channel_id, message.text)
+    await message.answer(t("welcome_saved_success", lang))
+    await open_admin_panel(message, bot, state)
+
+
+@router.callback_query(F.data.startswith("reset_welc_"))
+async def reset_welcome(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    channel_id = int(callback.data.replace("reset_welc_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    await set_channel_welcome_message(channel_id, None)
+    await callback.answer(t("welcome_reset_success", lang))
+    await open_admin_panel(callback.message, bot, state)
+
+
+@router.callback_query(F.data.startswith("set_autorep_"))
+async def prompt_autoreply(callback: types.CallbackQuery, state: FSMContext):
+    channel_id = int(callback.data.replace("set_autorep_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    await state.update_data(channel_id=channel_id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("btn_reset", lang), callback_data=f"reset_autorep_{channel_id}")]])
+    await callback.message.edit_text(t("prompt_enter_autoreply", lang), reply_markup=kb)
+    await state.set_state(AdminSettingsFSM.waiting_for_auto_reply)
+
+
+@router.message(AdminSettingsFSM.waiting_for_auto_reply)
+async def process_save_autoreply(message: types.Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    channel_id = data["channel_id"]
+    user = await get_or_create_user(message.from_user.id)
+    lang = user.language_code
+
+    await set_channel_auto_reply(channel_id, message.text)
+    await message.answer(t("autoreply_saved_success", lang))
+    await open_admin_panel(message, bot, state)
+
+
+@router.callback_query(F.data.startswith("reset_autorep_"))
+async def reset_autoreply(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    channel_id = int(callback.data.replace("reset_autorep_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    await set_channel_auto_reply(channel_id, None)
+    await callback.answer(t("autoreply_reset_success", lang))
+    await open_admin_panel(callback.message, bot, state)
+
+
+@router.callback_query(F.data.startswith("tog_copy_"))
+async def toggle_copyright(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("tog_copy_", ""))
+    channel = await get_channel_by_id(channel_id)
+    settings = channel.settings or {}
+
+    settings["show_copyright"] = not settings.get("show_copyright", True)
+    await update_channel_settings(channel_id, settings)
+    await manage_premium_menu(callback)
+
+
+# ==================== НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
 
 async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
     user = await get_or_create_user(callback.from_user.id)
@@ -133,6 +262,8 @@ async def process_toggle_button(callback: types.CallbackQuery):
     await update_channel_settings(channel_id, settings)
     await show_buttons_menu(callback, channel_id)
 
+
+# ==================== ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
 
 async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
@@ -194,6 +325,8 @@ async def change_display_type(callback: types.CallbackQuery):
     await update_admin_personal_settings(channel_id, user_id, accepts, new_disp_type)
     await show_admin_profile_settings(callback, channel_id)
 
+
+# ==================== ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
 
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):

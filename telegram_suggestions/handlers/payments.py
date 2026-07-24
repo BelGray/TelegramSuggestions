@@ -1,10 +1,7 @@
 from aiogram import Router, Bot, F, types
 from aiogram.types import LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton, PreCheckoutQuery
 
-from telegram_suggestions.database.requests import get_or_create_user
-from telegram_suggestions.database.engine import async_session
-from telegram_suggestions.database.models import Channel
-from sqlalchemy import update
+from telegram_suggestions.database.requests import get_or_create_user, activate_channel_premium
 from telegram_suggestions.utils.localization import t
 
 router = Router()
@@ -73,9 +70,7 @@ async def process_successful_payment(message: types.Message):
     parts = payload.split("_")
     plan, channel_id = parts[2], int(parts[3])
 
-    async with async_session() as session:
-        stmt = update(Channel).where(Channel.id == channel_id).values(is_premium=True)
-        await session.execute(stmt)
-        await session.commit()
+    # Точная активация со сроком действия
+    await activate_channel_premium(channel_id, plan)
 
     await message.answer(t("pay_success", lang, channel_id=channel_id))

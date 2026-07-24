@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 
 from telegram_suggestions.database.engine import async_session
 from telegram_suggestions.database.models import Message, Channel
-from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user
+from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium
 from telegram_suggestions.utils.localization import t
 
 router = Router()
@@ -24,9 +24,17 @@ async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
-    await callback.message.answer(t("admin_reply_priv_prompt", lang))
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
+    await callback.message.answer(t("admin_reply_priv_prompt", lang), reply_markup=kb)
     await state.set_state(AdminReplyFSM.waiting_for_private_reply)
     await callback.answer()
+
+
+@router.callback_query(F.data == "cancel_reply")
+async def cancel_reply(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.delete()
 
 
 @router.message(AdminReplyFSM.waiting_for_private_reply)
@@ -83,7 +91,9 @@ async def start_public_reply(callback: types.CallbackQuery, state: FSMContext):
     lang = user.language_code
 
     await state.update_data(reply_msg_id=msg_id)
-    await callback.message.answer(t("admin_reply_pub_prompt", lang))
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="cancel_reply")]])
+    await callback.message.answer(t("admin_reply_pub_prompt", lang), reply_markup=kb)
     await state.set_state(AdminReplyFSM.waiting_for_public_reply)
     await callback.answer()
 
@@ -110,26 +120,34 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
         res_ch = await session.execute(select(Channel).where(Channel.id == orig_msg.channel_id))
         ch_obj = res_ch.scalar_one_or_none()
 
+    has_prem = await is_channel_premium(ch_obj) if ch_obj else False
+    settings = ch_obj.settings if ch_obj else {}
+    show_copyright = settings.get("show_copyright", True)
+
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
     sender_str = t("anon_question_title", lang) if orig_msg.is_anonymous else t("public_question_title", lang)
     reply_hdr = t("channel_reply_header", lang)
-    ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link)
+
+    # Отключение копирайта бота для Премиум-каналов
+    ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
     post_text = (
         f"{sender_str}\n"
         f"«{orig_msg.text or ''}»\n\n"
         f"{reply_hdr}\n"
-        f"«{message.text or ''}»\n\n"
-        f"{ask_prompt}"
+        f"«{message.text or ''}»"
     )
+    if ask_prompt:
+        post_text += f"\n\n{ask_prompt}"
 
     try:
         await bot.send_message(chat_id=orig_msg.channel_id, text=post_text)
 
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
-            await bot.send_message(chat_id=orig_msg.sender_id, text=t("sub_published_in_channel", sender_user.language_code))
+            await bot.send_message(chat_id=orig_msg.sender_id,
+                                   text=t("sub_published_in_channel", sender_user.language_code))
         except Exception:
             pass
 
@@ -163,16 +181,18 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         res_ch = await session.execute(select(Channel).where(Channel.id == orig_msg.channel_id))
         ch_obj = res_ch.scalar_one_or_none()
 
+    has_prem = await is_channel_premium(ch_obj) if ch_obj else False
+    settings = ch_obj.settings if ch_obj else {}
+    show_copyright = settings.get("show_copyright", True)
+
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
     idea_hdr = t("idea_post_header", lang)
-    idea_prompt = t("idea_suggest_prompt", lang, bot_link=bot_link)
+    idea_prompt = t("idea_suggest_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
-    post_text = (
-        f"{idea_hdr}\n\n"
-        f"{orig_msg.text or ''}\n\n"
-        f"{idea_prompt}"
-    )
+    post_text = f"{idea_hdr}\n\n{orig_msg.text or ''}"
+    if idea_prompt:
+        post_text += f"\n\n{idea_prompt}"
 
     try:
         if orig_msg.media_type == "photo":

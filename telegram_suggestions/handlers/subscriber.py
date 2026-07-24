@@ -12,7 +12,8 @@ from telegram_suggestions.database.requests import (
     get_channel_admins,
     check_review_cooldown,
     is_user_banned,
-    add_message
+    add_message,
+    is_channel_premium
 )
 from telegram_suggestions.utils.localization import t
 
@@ -82,8 +83,13 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     kb = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-    welcome_text = channel.welcome_message or t("sub_menu_header", lang, channel_title=channel_title,
-                                                rating_str=rating_str)
+    # Кастомное приветствие работает, если активирован Премиум
+    has_premium = await is_channel_premium(channel)
+    if has_premium and channel.welcome_message:
+        welcome_text = channel.welcome_message
+    else:
+        welcome_text = t("sub_menu_header", lang, channel_title=channel_title, rating_str=rating_str)
+
     await message.answer(welcome_text, reply_markup=kb)
 
 
@@ -267,7 +273,15 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения админу {adm_id}: {e}")
 
-    await message.answer(t("msg_sent_success", lang))
+    # Уведомление об успешной отправке + Автоответ если включен Премиум
+    channel_obj = await get_channel_by_id(channel_id)
+    has_prem = await is_channel_premium(channel_obj)
+
+    if has_prem and channel_obj.auto_reply:
+        await message.answer(f"{t('msg_sent_success', lang)}\n\n🤖 **Автоответ канала:**\n{channel_obj.auto_reply}")
+    else:
+        await message.answer(t("msg_sent_success", lang))
+
     await state.clear()
 
 
