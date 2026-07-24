@@ -37,7 +37,7 @@ async def bot_added_to_channel(event: ChatMemberUpdated, bot: Bot):
     success_text = t("channel_setup_success", lang, channel_title=channel_title, sub_link=sub_link)
 
     try:
-        await bot.send_message(chat_id=user_id, text=success_text, parse_mode="Markdown")
+        await bot.send_message(chat_id=user_id, text=success_text)
     except (TelegramForbiddenError, TelegramBadRequest):
         reg_link = f"https://t.me/{bot_info.username}?start=reg_{channel_id}"
         kb = InlineKeyboardMarkup(inline_keyboard=[[
@@ -49,8 +49,7 @@ async def bot_added_to_channel(event: ChatMemberUpdated, bot: Bot):
                 chat_id=channel_id,
                 text=t("channel_setup_temp_post", lang),
                 reply_markup=kb,
-                disable_notification=True,
-                parse_mode="Markdown"
+                disable_notification=True
             )
         except Exception as e:
             logging.error(f"Не удалось отправить сообщение в канал: {e}")
@@ -101,7 +100,7 @@ async def handle_reg_link(message: types.Message, command: CommandObject, bot: B
     bot_info = await bot.get_me()
     sub_link = f"https://t.me/{bot_info.username}?start=c_{channel.deep_link_hash}"
 
-    await message.answer(t("reg_success", lang, sub_link=sub_link), parse_mode="Markdown")
+    await message.answer(t("reg_success", lang, sub_link=sub_link))
 
 
 # ==================== 3. ОБРАБОТКА ПРИГЛАШЕНИЯ СО-АДМИНА (inv_) ====================

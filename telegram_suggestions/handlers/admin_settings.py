@@ -1,5 +1,5 @@
 from aiogram import Router, Bot, F, types
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -112,8 +112,6 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await callback.message.edit_text(text, reply_markup=kb)
 
 
-# ==================== УПРАВЛЕНИЕ ПРЕМИУМ НАСТРОЙКАМИ ====================
-
 @router.callback_query(F.data.startswith("prem_manage_"))
 async def manage_premium_menu(callback: types.CallbackQuery):
     channel_id = int(callback.data.replace("prem_manage_", ""))
@@ -219,8 +217,6 @@ async def toggle_copyright(callback: types.CallbackQuery):
     await manage_premium_menu(callback)
 
 
-# ==================== НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
-
 async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
@@ -262,8 +258,6 @@ async def process_toggle_button(callback: types.CallbackQuery):
     await update_channel_settings(channel_id, settings)
     await show_buttons_menu(callback, channel_id)
 
-
-# ==================== ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
 
 async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
@@ -325,8 +319,6 @@ async def change_display_type(callback: types.CallbackQuery):
     await update_admin_personal_settings(channel_id, user_id, accepts, new_disp_type)
     await show_admin_profile_settings(callback, channel_id)
 
-
-# ==================== ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
 
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
