@@ -57,8 +57,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "public_question_title_open": "❓ <b>Вопрос от {author_str}</b>",
         "channel_reply_header": "💬 <b>Ответ:</b>",
         "channel_ask_prompt": "🤖 <i>Задать свой вопрос: {bot_link}</i>",
-        "idea_post_header_anon": "💡 <b>Идея от подписчика</b>",
-        "idea_post_header_public": "💡 <b>Идея от {author_str}</b>",
+        "idea_post_header_anon": "💡 <b>Пост от анонимного подписчика</b>",
+        "idea_post_header_public": "💡 <b>Пост от {author_str}</b>",
         "idea_suggest_prompt": "🤖 <i>Предложить свою идею: {bot_link}</i>",
 
         # Регистрация канала
