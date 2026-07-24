@@ -162,18 +162,19 @@ async def process_save_welcome(message: types.Message, state: FSMContext, bot: B
 
     await set_channel_welcome_message(channel_id, message.text)
     await message.answer(t("welcome_saved_success", lang))
-    await open_admin_panel(message, bot, state)
+    await show_admin_channels_list(message, message.from_user.id, bot, state)
 
 
 @router.callback_query(F.data.startswith("reset_welc_"))
-async def reset_welcome(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+async def reset_welcome(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("reset_welc_", ""))
+    await state.clear()
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
     await set_channel_welcome_message(channel_id, None)
     await callback.answer(t("welcome_reset_success", lang))
-    await open_admin_panel(callback.message, bot, state)
+    await show_manage_premium_menu(callback, channel_id)
 
 
 @router.callback_query(F.data.startswith("set_autorep_"))
@@ -198,18 +199,19 @@ async def process_save_autoreply(message: types.Message, state: FSMContext, bot:
 
     await set_channel_auto_reply(channel_id, message.text)
     await message.answer(t("autoreply_saved_success", lang))
-    await open_admin_panel(message, bot, state)
+    await show_admin_channels_list(message, message.from_user.id, bot, state)
 
 
 @router.callback_query(F.data.startswith("reset_autorep_"))
-async def reset_autoreply(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+async def reset_autoreply(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("reset_autorep_", ""))
+    await state.clear()
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
     await set_channel_auto_reply(channel_id, None)
     await callback.answer(t("autoreply_reset_success", lang))
-    await open_admin_panel(callback.message, bot, state)
+    await show_manage_premium_menu(callback, channel_id)
 
 
 @router.callback_query(F.data.startswith("tog_copy_"))
