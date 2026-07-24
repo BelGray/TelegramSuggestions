@@ -77,7 +77,7 @@ async def bot_removed_from_channel(event: ChatMemberUpdated, bot: Bot):
 
 # ==================== 2. ОБРАБОТКА DEEP-LINK РЕГИСТРАЦИИ (reg_) ====================
 
-@router.message(CommandStart(deep_link=True), F.args.startswith("reg_"))
+@router.message(CommandStart(deep_link=True, magic=F.args.startswith("reg_")))
 async def handle_reg_link(message: types.Message, command: CommandObject, bot: Bot):
     user_id = message.from_user.id
     user = await get_or_create_user(user_id, message.from_user.language_code)
@@ -106,7 +106,7 @@ async def handle_reg_link(message: types.Message, command: CommandObject, bot: B
 
 # ==================== 3. ОБРАБОТКА ПРИГЛАШЕНИЯ СО-АДМИНА (inv_) ====================
 
-@router.message(CommandStart(deep_link=True), F.args.startswith("inv_"))
+@router.message(CommandStart(deep_link=True, magic=F.args.startswith("inv_")))
 async def handle_inv_link(message: types.Message, command: CommandObject, bot: Bot):
     user_id = message.from_user.id
     user = await get_or_create_user(user_id, message.from_user.language_code)
