@@ -17,8 +17,6 @@ class AdminReplyFSM(StatesGroup):
     waiting_for_public_reply = State()
 
 
-# ==================== 1. НАЧАЛО ЛИЧНОГО ОТВЕТА ====================
-
 @router.callback_query(F.data.startswith("rep_priv_"))
 async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
     msg_id = int(callback.data.replace("rep_priv_", ""))
@@ -44,44 +42,39 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
         orig_msg = res.scalar_one_or_none()
 
     if not orig_msg:
-        await message.answer("❌ Сообщение не найдено.")
+        await message.answer(t("err_msg_not_found", lang))
         await state.clear()
         return
 
-    # Получаем язык подписчика для отправки ответа
     sender_user = await get_or_create_user(orig_msg.sender_id)
     sender_lang = sender_user.language_code
 
     try:
         chat = await bot.get_chat(orig_msg.channel_id)
-        ch_title = chat.title or "Канал"
+        ch_title = chat.title or "Channel"
     except Exception:
-        ch_title = "Канал"
+        ch_title = "Channel"
 
     reply_text = t("sub_received_priv_reply", sender_lang, channel_title=ch_title, text=message.text or "")
 
-    # Пересылаем медиа или текст подписчику
     try:
         if message.photo:
-            await bot.send_photo(chat_id=orig_msg.sender_id, photo=message.photo[-1].file_id, caption=reply_text, parse_mode="Markdown")
+            await bot.send_photo(chat_id=orig_msg.sender_id, photo=message.photo[-1].file_id, caption=reply_text)
         elif message.video:
-            await bot.send_video(chat_id=orig_msg.sender_id, video=message.video.file_id, caption=reply_text, parse_mode="Markdown")
+            await bot.send_video(chat_id=orig_msg.sender_id, video=message.video.file_id, caption=reply_text)
         else:
-            await bot.send_message(chat_id=orig_msg.sender_id, text=reply_text, parse_mode="Markdown")
+            await bot.send_message(chat_id=orig_msg.sender_id, text=reply_text)
 
-        # Обновляем статус в БД
         async with async_session() as session:
             await session.execute(update(Message).where(Message.id == msg_id).values(status="answered"))
             await session.commit()
 
         await message.answer(t("reply_sent_to_user_success", lang))
     except Exception:
-        await message.answer("❌ Не удалось отправить ответ. Возможно, подписчик заблокировал бота.")
+        await message.answer(t("err_cant_reply", lang))
 
     await state.clear()
 
-
-# ==================== 2. ПУБЛИЧНЫЙ ОТВЕТ В КАНАЛ ====================
 
 @router.callback_query(F.data.startswith("rep_pub_"))
 async def start_public_reply(callback: types.CallbackQuery, state: FSMContext):
@@ -108,7 +101,7 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
         orig_msg = res.scalar_one_or_none()
 
     if not orig_msg:
-        await message.answer("❌ Сообщение не найдено.")
+        await message.answer(t("err_msg_not_found", lang))
         await state.clear()
         return
 
@@ -119,20 +112,21 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
-    sender_str = "🕵️ Анонимный вопрос" if orig_msg.is_anonymous else f"Вопрос от пользователей"
+    sender_str = t("anon_question_title", lang) if orig_msg.is_anonymous else t("public_question_title", lang)
+    reply_hdr = t("channel_reply_header", lang)
+    ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link)
 
     post_text = (
-        f"❓ **{sender_str}**\n"
-        f"«_{orig_msg.text or ''}_»\n\n"
-        f"💬 **Ответ:**\n"
-        f"«_{message.text or ''}_»\n\n"
-        f"🤖 *Задать свой вопрос: {bot_link}*"
+        f"{sender_str}\n"
+        f"«{orig_msg.text or ''}»\n\n"
+        f"{reply_hdr}\n"
+        f"«{message.text or ''}»\n\n"
+        f"{ask_prompt}"
     )
 
     try:
-        await bot.send_message(chat_id=orig_msg.channel_id, text=post_text, parse_mode="Markdown")
+        await bot.send_message(chat_id=orig_msg.channel_id, text=post_text)
 
-        # Уведомляем автора в ЛС
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
             await bot.send_message(chat_id=orig_msg.sender_id, text=t("sub_published_in_channel", sender_user.language_code))
@@ -145,12 +139,10 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 
         await message.answer(t("post_published_success", lang))
     except Exception as e:
-        await message.answer(f"❌ Ошибка при публикации в канал: {e}")
+        await message.answer(t("err_publish_failed", lang, error=str(e)))
 
     await state.clear()
 
-
-# ==================== 3. ПУБЛИКАЦИЯ ИДЕИ ДЛЯ ПОСТА ====================
 
 @router.callback_query(F.data.startswith("pub_idea_"))
 async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
@@ -163,7 +155,7 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         orig_msg = res.scalar_one_or_none()
 
     if not orig_msg:
-        await callback.answer("Сообщение не найдено.")
+        await callback.answer(t("err_msg_not_found", lang))
         return
 
     bot_info = await bot.get_me()
@@ -173,19 +165,22 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
 
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
+    idea_hdr = t("idea_post_header", lang)
+    idea_prompt = t("idea_suggest_prompt", lang, bot_link=bot_link)
+
     post_text = (
-        f"💡 **Идея от подписчика**\n\n"
+        f"{idea_hdr}\n\n"
         f"{orig_msg.text or ''}\n\n"
-        f"🤖 *Предложить свою идею: {bot_link}*"
+        f"{idea_prompt}"
     )
 
     try:
         if orig_msg.media_type == "photo":
-            await bot.send_photo(chat_id=orig_msg.channel_id, photo=orig_msg.media_file_id, caption=post_text, parse_mode="Markdown")
+            await bot.send_photo(chat_id=orig_msg.channel_id, photo=orig_msg.media_file_id, caption=post_text)
         elif orig_msg.media_type == "video":
-            await bot.send_video(chat_id=orig_msg.channel_id, video=orig_msg.media_file_id, caption=post_text, parse_mode="Markdown")
+            await bot.send_video(chat_id=orig_msg.channel_id, video=orig_msg.media_file_id, caption=post_text)
         else:
-            await bot.send_message(chat_id=orig_msg.channel_id, text=post_text, parse_mode="Markdown")
+            await bot.send_message(chat_id=orig_msg.channel_id, text=post_text)
 
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
@@ -199,10 +194,8 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
 
         await callback.answer(t("post_published_success", lang))
     except Exception as e:
-        await callback.message.answer(f"❌ Ошибка публикации: {e}")
+        await callback.message.answer(t("err_publish_failed", lang, error=str(e)))
 
-
-# ==================== 4. БЛОКИРОВКА ИЗ КАРТОЧКИ ====================
 
 @router.callback_query(F.data.startswith("ban_"))
 async def ban_from_card(callback: types.CallbackQuery):

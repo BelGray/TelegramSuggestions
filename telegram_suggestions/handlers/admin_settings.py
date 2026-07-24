@@ -17,10 +17,7 @@ from telegram_suggestions.utils.localization import t
 router = Router()
 
 
-# ==================== 1. ГЛАВНОЕ МЕНЮ АДМИНА ====================
-
 async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
-    """Отрисовка списка каналов админа (поддерживает и Message, и CallbackQuery)"""
     user = await get_or_create_user(user_id)
     lang = user.language_code
 
@@ -28,18 +25,18 @@ async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
     if not channels:
         text = t("admin_welcome_no_channels", lang)
         if isinstance(event_obj, types.Message):
-            await event_obj.answer(text, parse_mode="Markdown")
+            await event_obj.answer(text)
         else:
-            await event_obj.message.edit_text(text, parse_mode="Markdown")
+            await event_obj.message.edit_text(text)
         return
 
     kb_buttons = []
     for ch in channels:
         try:
             chat = await bot.get_chat(ch.id)
-            title = chat.title or f"Канал {ch.id}"
+            title = chat.title or f"Channel {ch.id}"
         except Exception:
-            title = f"Канал {ch.id}"
+            title = f"Channel {ch.id}"
 
         kb_buttons.append([InlineKeyboardButton(text=f"📢 {title}", callback_data=f"adm_ch_{ch.id}")])
 
@@ -47,9 +44,9 @@ async def show_admin_channels_list(event_obj, user_id: int, bot: Bot):
     text = t("admin_panel_welcome", lang)
 
     if isinstance(event_obj, types.Message):
-        await event_obj.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await event_obj.answer(text, reply_markup=kb)
     else:
-        await event_obj.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await event_obj.message.edit_text(text, reply_markup=kb)
 
 
 @router.message(Command("admin"))
@@ -63,8 +60,6 @@ async def back_to_channels(callback: types.CallbackQuery, bot: Bot):
     await show_admin_channels_list(callback, callback.from_user.id, bot)
     await callback.answer()
 
-
-# ==================== 2. МЕНЮ УПРАВЛЕНИЯ КАНАЛОМ ====================
 
 @router.callback_query(F.data.startswith("adm_ch_"))
 async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
@@ -94,10 +89,8 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
     ])
 
     text = t("admin_channel_manage", lang, ch_title=ch_title, status=status_str, sub_link=sub_link)
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=kb)
 
-
-# ==================== 3. НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
 
 async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
     user = await get_or_create_user(callback.from_user.id)
@@ -117,7 +110,7 @@ async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
         [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
     ])
 
-    await callback.message.edit_text(t("header_set_btns", lang), reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(t("header_set_btns", lang), reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("set_btns_"))
@@ -141,8 +134,6 @@ async def process_toggle_button(callback: types.CallbackQuery):
     await show_buttons_menu(callback, channel_id)
 
 
-# ==================== 4. ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
-
 async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
     user = await get_or_create_user(user_id)
@@ -154,9 +145,9 @@ async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id:
 
     status_accepts = t("btn_accepts_on", lang) if accepts else t("btn_accepts_off", lang)
 
-    disp_anon = "🟢 Админ №X" if disp_type == "anon" else "⚪ Админ №X"
-    disp_name = "🟢 Имя" if disp_type == "name" else "⚪ Имя"
-    disp_username = "🟢 @username" if disp_type == "username" else "⚪ @username"
+    disp_anon = f"🟢 {t('disp_anon_title', lang)}" if disp_type == "anon" else f"⚪ {t('disp_anon_title', lang)}"
+    disp_name = f"🟢 {t('disp_name_title', lang)}" if disp_type == "name" else f"⚪ {t('disp_name_title', lang)}"
+    disp_username = f"🟢 {t('disp_username_title', lang)}" if disp_type == "username" else f"⚪ {t('disp_username_title', lang)}"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=status_accepts, callback_data=f"prof_acc_{channel_id}")],
@@ -168,7 +159,7 @@ async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id:
         [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
     ])
 
-    await callback.message.edit_text(t("header_set_profile", lang), reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(t("header_set_profile", lang), reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("set_profile_"))
@@ -204,8 +195,6 @@ async def change_display_type(callback: types.CallbackQuery):
     await show_admin_profile_settings(callback, channel_id)
 
 
-# ==================== 5. ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
-
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
     channel_id = int(callback.data.replace("get_inv_", ""))
@@ -218,7 +207,7 @@ async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
     text = t("coadmin_text", lang, inv_link=inv_link)
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]])
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=kb)
 
 
 async def show_banned_users_menu(callback: types.CallbackQuery, channel_id: int):
@@ -236,13 +225,13 @@ async def show_banned_users_menu(callback: types.CallbackQuery, channel_id: int)
     kb_buttons = []
     for b in bans:
         kb_buttons.append([InlineKeyboardButton(
-            text=f"🔓 Unban (ID: {b.user_id})",
+            text=t("btn_unban_id", lang, user_id=b.user_id),
             callback_data=f"unban_usr_{channel_id}_{b.user_id}"
         )])
 
     kb_buttons.append([InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")])
     kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
-    await callback.message.edit_text(t("ban_list_header", lang), reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(t("ban_list_header", lang), reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("ban_list_"))

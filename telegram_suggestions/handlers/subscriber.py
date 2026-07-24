@@ -19,8 +19,6 @@ from telegram_suggestions.utils.localization import t
 router = Router()
 
 
-# ==================== FSM СОСТОЯНИЯ ====================
-
 class SubscriberFSM(StatesGroup):
     choosing_anonymity = State()
     waiting_for_idea = State()
@@ -43,7 +41,7 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     channel = await get_channel_by_hash(hash_str)
     if not channel:
-        await message.answer("❌ Канал не найден или ссылка устарела.")
+        await message.answer(t("err_channel_not_found_subscriber", lang))
         return
 
     if await is_user_banned(channel.id, user_id):
@@ -52,9 +50,9 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     try:
         chat = await bot.get_chat(channel.id)
-        channel_title = chat.title or "Канал"
+        channel_title = chat.title or "Channel"
     except Exception:
-        channel_title = "Канал"
+        channel_title = "Channel"
 
     rating_count, rating_avg = await get_channel_rating(channel.id)
     rating_str = ""
@@ -131,17 +129,17 @@ async def choose_admin_list(callback: types.CallbackQuery, state: FSMContext, bo
         if admin.display_type == "name":
             try:
                 tg_user = await bot.get_chat(admin.user_id)
-                display_name = tg_user.first_name or f"Админ №{idx}"
+                display_name = tg_user.first_name or f"{t('disp_anon_title', lang).replace('X', str(idx))}"
             except Exception:
-                display_name = f"Админ №{idx}"
+                display_name = f"{t('disp_anon_title', lang).replace('X', str(idx))}"
         elif admin.display_type == "username":
             try:
                 tg_user = await bot.get_chat(admin.user_id)
-                display_name = f"@{tg_user.username}" if tg_user.username else f"Админ №{idx}"
+                display_name = f"@{tg_user.username}" if tg_user.username else f"{t('disp_anon_title', lang).replace('X', str(idx))}"
             except Exception:
-                display_name = f"Админ №{idx}"
+                display_name = f"{t('disp_anon_title', lang).replace('X', str(idx))}"
         else:
-            display_name = f"Админ №{idx}"
+            display_name = f"{t('disp_anon_title', lang).replace('X', str(idx))}"
 
         kb_buttons.append([InlineKeyboardButton(
             text=f"👤 {display_name}",
@@ -149,7 +147,7 @@ async def choose_admin_list(callback: types.CallbackQuery, state: FSMContext, bo
         )])
 
     kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
-    await callback.message.edit_text("Выберите администратора, которому хотите задать вопрос:", reply_markup=kb)
+    await callback.message.edit_text(t("prompt_choose_admin", lang), reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("pick_adm_"))
@@ -217,11 +215,11 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
 
     try:
         chat = await bot.get_chat(channel_id)
-        ch_title = chat.title or "Канал"
+        ch_title = chat.title or "Channel"
     except Exception:
-        ch_title = "Канал"
+        ch_title = "Channel"
 
-    sender_info = "🕵️ Анонимно" if is_anon else f"@{message.from_user.username or message.from_user.first_name}"
+    sender_info = t("btn_anon", lang) if is_anon else f"@{message.from_user.username or message.from_user.first_name}"
 
     if target_admin_id:
         target_admins = [target_admin_id]
@@ -234,11 +232,12 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
             adm_user = await get_or_create_user(adm_id)
             adm_lang = adm_user.language_code
 
+            media_txt = t("media_placeholder", adm_lang)
             admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
-                                text=text or "[Медиафайл]") if msg_type == "idea" else t("admin_new_question", adm_lang,
-                                                                                         channel_title=ch_title,
-                                                                                         sender_info=sender_info,
-                                                                                         text=text or "[Медиафайл]")
+                                text=text or media_txt) if msg_type == "idea" else t("admin_new_question", adm_lang,
+                                                                                     channel_title=ch_title,
+                                                                                     sender_info=sender_info,
+                                                                                     text=text or media_txt)
 
             buttons = []
             if msg_type == "idea":

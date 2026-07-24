@@ -25,22 +25,24 @@ async def show_premium_options(callback: types.CallbackQuery):
         [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
     ])
 
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(text)
 
 
 @router.callback_query(F.data.startswith("buy_prem_"))
 async def send_stars_invoice(callback: types.CallbackQuery, bot: Bot):
     parts = callback.data.split("_")
     plan, channel_id = parts[2], int(parts[3])
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
 
     if plan == "1m":
-        title = "Onward Premium (1 Month)"
+        title = t("plan_1m_title", lang)
         stars_amount = 50
     elif plan == "3m":
-        title = "Onward Premium (3 Months)"
+        title = t("plan_3m_title", lang)
         stars_amount = 120
     else:
-        title = "Onward Premium (Lifetime)"
+        title = t("plan_life_title", lang)
         stars_amount = 350
 
     prices = [LabeledPrice(label=title, amount=stars_amount)]
@@ -48,7 +50,7 @@ async def send_stars_invoice(callback: types.CallbackQuery, bot: Bot):
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=title,
-        description=f"Premium access for channel {channel_id}",
+        description=t("invoice_desc", lang, channel_id=channel_id),
         payload=f"stars_pay_{plan}_{channel_id}",
         provider_token="",
         currency="XTR",
@@ -76,4 +78,4 @@ async def process_successful_payment(message: types.Message):
         await session.execute(stmt)
         await session.commit()
 
-    await message.answer(t("pay_success", lang, channel_id=channel_id), parse_mode="Markdown")
+    await message.answer(t("pay_success", lang, channel_id=channel_id))
