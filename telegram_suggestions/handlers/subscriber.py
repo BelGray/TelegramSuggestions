@@ -31,7 +31,7 @@ class SubscriberFSM(StatesGroup):
 
 # ==================== 1. ВХОД ПО ССЫЛКЕ КАНАЛА (c_HASH) ====================
 
-@router.message(CommandStart(deep_link=True), F.text.contains("c_"))
+@router.message(CommandStart(deep_link=True, magic=F.args.startswith("c_")))
 async def open_subscriber_menu(message: types.Message, command: CommandObject, state: FSMContext, bot: Bot):
     await state.clear()
 
@@ -45,7 +45,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
         await message.answer("❌ Канал не найден или ссылка устарела.")
         return
 
-    # Проверка на бан в этом канале
     if await is_user_banned(channel.id, user_id):
         await message.answer(t("user_banned_error", lang))
         return
@@ -56,7 +55,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
     except Exception:
         channel_title = "Канал"
 
-    # Подсчет рейтинга
     rating_count, rating_avg = await get_channel_rating(channel.id)
     rating_str = ""
     if rating_count >= 5:
@@ -230,7 +228,6 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         admins_list = await get_channel_admins(channel_id)
         target_admins = [a.user_id for a in admins_list]
 
-    # Рассылка админам с учетом ИХ языка
     for adm_id in target_admins:
         try:
             adm_user = await get_or_create_user(adm_id)
