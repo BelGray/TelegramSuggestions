@@ -9,6 +9,7 @@ from telegram_suggestions.database.requests import (
     get_or_create_user,
     get_channel_by_hash,
     get_channel_rating,
+    get_channel_by_id,
     get_channel_admins,
     check_review_cooldown,
     is_user_banned,

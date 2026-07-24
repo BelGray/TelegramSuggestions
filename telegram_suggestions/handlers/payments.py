@@ -22,7 +22,8 @@ async def show_premium_options(callback: types.CallbackQuery):
         [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
     ])
 
-    await callback.message.edit_text(text)
+    # Добавлен пропущенный параметр reply_markup=kb
+    await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("buy_prem_"))
@@ -49,7 +50,7 @@ async def send_stars_invoice(callback: types.CallbackQuery, bot: Bot):
         title=title,
         description=t("invoice_desc", lang, channel_id=channel_id),
         payload=f"stars_pay_{plan}_{channel_id}",
-        provider_token="",
+        provider_token="",  # Пустая строка для оплаты Звёздами Telegram
         currency="XTR",
         prices=prices
     )
@@ -70,7 +71,6 @@ async def process_successful_payment(message: types.Message):
     parts = payload.split("_")
     plan, channel_id = parts[2], int(parts[3])
 
-    # Точная активация со сроком действия
     await activate_channel_premium(channel_id, plan)
 
     await message.answer(t("pay_success", lang, channel_id=channel_id))
