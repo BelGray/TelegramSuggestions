@@ -5,8 +5,8 @@ from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy import select, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from engine import async_session
-from models import User, Channel, ChannelAdmin, Message, ChannelBan
+from telegram_suggestions.database.engine import async_session
+from telegram_suggestions.database.models import User, Channel, ChannelAdmin, Message, ChannelBan
 
 
 # ==================== ПОЛЬЗОВАТЕЛИ ====================

@@ -17,6 +17,8 @@ from telegram_suggestions.utils.localization import t
 router = Router()
 
 
+# ==================== 1. ГЛАВНОЕ МЕНЮ АДМИНА ====================
+
 @router.message(Command("admin"))
 @router.message(Command("start"))
 async def open_admin_panel(message: types.Message, bot: Bot):
@@ -42,6 +44,8 @@ async def open_admin_panel(message: types.Message, bot: Bot):
     kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
     await message.answer(t("admin_panel_welcome", lang), reply_markup=kb, parse_mode="Markdown")
 
+
+# ==================== 2. МЕНЮ УПРАВЛЕНИЯ КАНАЛОМ ====================
 
 @router.callback_query(F.data.startswith("adm_ch_"))
 async def open_channel_menu(callback: types.CallbackQuery, bot: Bot):
@@ -79,9 +83,9 @@ async def back_to_channels(callback: types.CallbackQuery, bot: Bot):
     await open_admin_panel(callback.message, bot)
 
 
-@router.callback_query(F.data.startswith("set_btns_"))
-async def toggle_buttons_menu(callback: types.CallbackQuery):
-    channel_id = int(callback.data.replace("set_btns_", ""))
+# ==================== 3. НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
+
+async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
@@ -102,6 +106,12 @@ async def toggle_buttons_menu(callback: types.CallbackQuery):
     await callback.message.edit_text(t("header_set_btns", lang), reply_markup=kb, parse_mode="Markdown")
 
 
+@router.callback_query(F.data.startswith("set_btns_"))
+async def toggle_buttons_menu_entry(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("set_btns_", ""))
+    await show_buttons_menu(callback, channel_id)
+
+
 @router.callback_query(F.data.startswith("tog_"))
 async def process_toggle_button(callback: types.CallbackQuery):
     parts = callback.data.split("_")
@@ -114,12 +124,12 @@ async def process_toggle_button(callback: types.CallbackQuery):
     settings[setting_key] = not settings.get(setting_key, True)
 
     await update_channel_settings(channel_id, settings)
-    await toggle_buttons_menu(callback)
+    await show_buttons_menu(callback, channel_id)
 
 
-@router.callback_query(F.data.startswith("set_profile_"))
-async def admin_profile_settings(callback: types.CallbackQuery):
-    channel_id = int(callback.data.replace("set_profile_", ""))
+# ==================== 4. ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
+
+async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
     user = await get_or_create_user(user_id)
     lang = user.language_code
@@ -147,6 +157,12 @@ async def admin_profile_settings(callback: types.CallbackQuery):
     await callback.message.edit_text(t("header_set_profile", lang), reply_markup=kb, parse_mode="Markdown")
 
 
+@router.callback_query(F.data.startswith("set_profile_"))
+async def admin_profile_settings_entry(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("set_profile_", ""))
+    await show_admin_profile_settings(callback, channel_id)
+
+
 @router.callback_query(F.data.startswith("prof_acc_"))
 async def toggle_accepts_questions(callback: types.CallbackQuery):
     channel_id = int(callback.data.replace("prof_acc_", ""))
@@ -157,21 +173,24 @@ async def toggle_accepts_questions(callback: types.CallbackQuery):
     disp_type = admin_rec.display_type if admin_rec else "anon"
 
     await update_admin_personal_settings(channel_id, user_id, new_accepts, disp_type)
-    await admin_profile_settings(callback)
+    await show_admin_profile_settings(callback, channel_id)
 
 
 @router.callback_query(F.data.startswith("prof_dt_"))
 async def change_display_type(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    channel_id, new_disp_type = int(parts[2]), parts[3]
+    channel_id = int(parts[2])
+    new_disp_type = parts[3]
     user_id = callback.from_user.id
 
     admin_rec = await get_admin_record(channel_id, user_id)
     accepts = admin_rec.accepts_direct_questions if admin_rec else True
 
     await update_admin_personal_settings(channel_id, user_id, accepts, new_disp_type)
-    await admin_profile_settings(callback)
+    await show_admin_profile_settings(callback, channel_id)
 
+
+# ==================== 5. ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
 
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
@@ -188,9 +207,7 @@ async def get_invite_link(callback: types.CallbackQuery, bot: Bot):
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 
-@router.callback_query(F.data.startswith("ban_list_"))
-async def show_banned_users(callback: types.CallbackQuery):
-    channel_id = int(callback.data.replace("ban_list_", ""))
+async def show_banned_users_menu(callback: types.CallbackQuery, channel_id: int):
     user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
@@ -214,6 +231,12 @@ async def show_banned_users(callback: types.CallbackQuery):
     await callback.message.edit_text(t("ban_list_header", lang), reply_markup=kb, parse_mode="Markdown")
 
 
+@router.callback_query(F.data.startswith("ban_list_"))
+async def show_banned_users_entry(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("ban_list_", ""))
+    await show_banned_users_menu(callback, channel_id)
+
+
 @router.callback_query(F.data.startswith("unban_usr_"))
 async def process_unban_user(callback: types.CallbackQuery):
     parts = callback.data.split("_")
@@ -223,4 +246,4 @@ async def process_unban_user(callback: types.CallbackQuery):
 
     await unban_user(channel_id, target_user_id)
     await callback.answer(t("toast_unbanned", lang))
-    await show_banned_users(callback)
+    await show_banned_users_menu(callback, channel_id)

@@ -4,7 +4,7 @@ from aiogram.filters import CommandStart, CommandObject, ChatMemberUpdatedFilter
 from aiogram.types import ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from ..database.requests import (
+from telegram_suggestions.database.requests import (
     get_or_create_user,
     create_channel,
     get_channel_by_id,
