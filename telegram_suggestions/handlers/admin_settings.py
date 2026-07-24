@@ -20,7 +20,8 @@ from telegram_suggestions.database.requests import (
     set_channel_auto_reply,
     get_channel_stats,
     get_channel_reviews_for_export,
-    is_user_channel_admin
+    is_user_channel_admin,
+    set_channel_language
 )
 from telegram_suggestions.utils.localization import t
 
@@ -107,8 +108,12 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMC
     has_prem = await is_channel_premium(channel)
     status_str = t("status_premium", lang) if has_prem else t("status_free", lang)
 
+    lang_flag = "🇷🇺 RU" if channel.language_code == "ru" else "🇬🇧 EN" if channel.language_code == "en" else "🇪🇸 ES" if channel.language_code == "es" else "🇮🇳 HI"
+
     buttons = [
         [InlineKeyboardButton(text=t("btn_set_btns", lang), callback_data=f"set_btns_{channel_id}")],
+        [InlineKeyboardButton(text=t("btn_ch_lang", lang, curr_lang=lang_flag),
+                              callback_data=f"set_ch_lang_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_set_profile", lang), callback_data=f"set_profile_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_add_coadmin", lang), callback_data=f"get_inv_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_ban_list", lang), callback_data=f"ban_list_{channel_id}")]
@@ -126,6 +131,58 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMC
     text = t("admin_channel_manage", lang, ch_title=ch_title, status=status_str, sub_link=sub_link)
     await callback.message.edit_text(text, reply_markup=kb)
 
+
+# ==================== ВЫБОР ЯЗЫКА КАНАЛА ====================
+
+@router.callback_query(F.data.startswith("set_ch_lang_"))
+async def show_channel_language_menu(callback: types.CallbackQuery):
+    channel_id = int(callback.data.replace("set_ch_lang_", ""))
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
+    lang = user.language_code
+
+    channel = await get_channel_by_id(channel_id)
+    curr = channel.language_code if channel else "ru"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'ru' else '⚪'} 🇷🇺 Русский",
+                              callback_data=f"ch_lang_{channel_id}_ru")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'en' else '⚪'} 🇬🇧 English",
+                              callback_data=f"ch_lang_{channel_id}_en")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'es' else '⚪'} 🇪🇸 Español",
+                              callback_data=f"ch_lang_{channel_id}_es")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'hi' else '⚪'} 🇮🇳 हिन्दी",
+                              callback_data=f"ch_lang_{channel_id}_hi")],
+        [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"adm_ch_{channel_id}")]
+    ])
+
+    await callback.message.edit_text(t("header_ch_lang", lang), reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("ch_lang_"))
+async def process_change_channel_language(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+    parts = callback.data.split("_")
+    channel_id, new_lang = int(parts[2]), parts[3]
+    user_id = callback.from_user.id
+
+    if not await is_user_channel_admin(channel_id, user_id):
+        await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
+        return
+
+    user = await get_or_create_user(user_id)
+    lang = user.language_code
+
+    await set_channel_language(channel_id, new_lang)
+    await callback.answer(t("toast_ch_lang_updated", lang))
+    await open_channel_menu(callback, bot, state)
+
+
+# ==================== УПРАВЛЕНИЕ ПРЕМИУМ НАСТРОЙКАМИ ====================
 
 async def show_manage_premium_menu(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
@@ -373,6 +430,8 @@ async def toggle_copyright(callback: types.CallbackQuery):
     await show_manage_premium_menu(callback, channel_id)
 
 
+# ==================== НАСТРОЙКА КНОПОК ПРЕДЛОЖКИ ====================
+
 async def show_buttons_menu(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
     if not await is_user_channel_admin(channel_id, user_id):
@@ -429,6 +488,8 @@ async def process_toggle_button(callback: types.CallbackQuery):
     await update_channel_settings(channel_id, settings)
     await show_buttons_menu(callback, channel_id)
 
+
+# ==================== ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ АДМИНА ====================
 
 async def show_admin_profile_settings(callback: types.CallbackQuery, channel_id: int):
     user_id = callback.from_user.id
@@ -502,6 +563,8 @@ async def change_display_type(callback: types.CallbackQuery):
     await update_admin_personal_settings(channel_id, user_id, accepts, new_disp_type)
     await show_admin_profile_settings(callback, channel_id)
 
+
+# ==================== ПРИГЛАШЕНИЕ СО-АДМИНА И СПИСОК БАНОВ ====================
 
 @router.callback_query(F.data.startswith("get_inv_"))
 async def get_invite_link(callback: types.CallbackQuery, bot: Bot):

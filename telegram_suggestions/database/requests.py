@@ -366,3 +366,10 @@ async def get_channel_reviews_for_export(channel_id: int) -> List[Message]:
         ).order_by(Message.created_at.desc())
         res = await session.execute(stmt)
         return list(res.scalars().all())
+
+async def set_channel_language(channel_id: int, language_code: str):
+    """Смена языка публикаций для канала"""
+    async with async_session() as session:
+        stmt = update(Channel).where(Channel.id == channel_id).values(language_code=language_code)
+        await session.execute(stmt)
+        await session.commit()
