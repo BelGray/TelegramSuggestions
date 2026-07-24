@@ -2,36 +2,25 @@ from typing import Dict, Any
 
 TEXTS: Dict[str, Dict[str, str]] = {
     "ru": {
-        # Главное меню подписчика
+        # Подписчики
         "sub_menu_header": "📢 **Предложка канала {channel_title}**\n{rating_str}\nВыберите действие ниже:",
         "rating_line": "⭐ **Рейтинг:** {avg_rating} / 5.0 ({count} оценок)\n",
         "btn_idea": "💡 Предложить идею",
         "btn_question_all": "❓ Задать вопрос владельцам",
         "btn_question_admin": "👤 Вопрос конкретному админу",
         "btn_review": "⭐ Оставить отзыв и оценку",
-
-        # Выбор анонимности
         "choose_anonymity": "Как вы хотите отправить сообщение?",
         "btn_anon": "🕵️ Анонимно",
         "btn_public": "👤 Открыто (@{username})",
-
-        # Промпты для ввода
         "prompt_send_idea": "💡 Напишите вашу идею или отправьте медиафайл (фото/видео/голосовое):",
         "prompt_send_question": "❓ Напишите ваш вопрос (можно прикрепить медиафайл):",
         "prompt_select_rating": "⭐ Выберите вашу оценку каналу от 1 до 5 звезд:",
         "prompt_send_review_text": "✍️ Напишите краткий комментарий к вашей оценке (или нажмите «Пропустить»):",
         "btn_skip": "⏩ Пропустить",
-
-        # Уведомления подписчику
         "msg_sent_success": "✅ Ваше сообщение успешно отправлено администраторам!",
         "review_saved_success": "🎉 Спасибо за ваш отзыв! Оценка сохранена.",
         "review_cooldown_error": "⏳ Вы уже оставляли отзыв. Изменить его можно будет через {days_left} дн.",
         "user_banned_error": "🛑 Администрация канала ограничила вам доступ к отправке сообщений.",
-
-        # Уведомления админу в ЛС
-        "admin_new_idea": "📥 **Новая идея для канала [{channel_title}]**\n👤 **Автор:** {sender_info}\n\n💬 {text}",
-        "admin_new_question": "📥 **Новый вопрос для канала [{channel_title}]**\n👤 **Автор:** {sender_info}\n📌 **Кому:** {target_info}\n\n💬 {text}",
-        "admin_new_review": "⭐ **Новый отзыв для канала [{channel_title}]**\nОценка: {stars}\n💬 Comment: {text}",
 
         # Кнопки для админа в карточке сообщения
         "btn_reply_private": "💬 Ответить лично",
@@ -39,20 +28,60 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "btn_publish_idea": "🚀 Опубликовать в канал",
         "btn_ban_user": "🚫 Заблокировать",
         "btn_unban_user": "🔄 Разблокировать",
+        "btn_back": "🔙 Назад",
 
-        # Шаблон поста в канале (Публичный ответ)
-        "channel_public_reply": "❓ **Вопрос от подписчика:** {sender_str}\n*«{question_text}»*\n\n💬 **Ответ:**\n*«{reply_text}»*\n\n🤖 *Задать вопрос или предложить идею: {bot_link}*",
-        "channel_public_idea": "💡 **Идея от подписчика:** {sender_str}\n\n{idea_text}\n\n🤖 *Предложить свою идею: {bot_link}*",
+        # Уведомления админу в ЛС
+        "admin_new_idea": "📥 **Новое сообщение для канала [{channel_title}]**\n📌 **Тип:** 💡 Идея\n👤 **Автор:** {sender_info}\n\n💬 {text}",
+        "admin_new_question": "📥 **Новое сообщение для канала [{channel_title}]**\n📌 **Тип:** ❓ Вопрос\n👤 **Автор:** {sender_info}\n\n💬 {text}",
+
+        # Регистрация канала
+        "channel_setup_success": "🎉 **Канал «{channel_title}» успешно подключен!**\n\n🔗 Ваша уникальная ссылка предложки для подписчиков:\n`{sub_link}`\n\nРазместите эту ссылку в описании канала или в постах!",
+        "channel_setup_temp_post": "⚙️ **Настройка Onward:** Администратору нужно нажать кнопку ниже для завершения подключения:",
+        "btn_complete_setup": "🔗 Завершить настройку Onward",
+        "bot_removed_from_channel": "⚠️ Бот Onward был удален из канала. Прием сообщений временно приостановлен.",
+        "err_not_channel_admin": "❌ Ошибка: Вы не являетесь администратором этого канала.",
+        "err_check_rights_failed": "❌ Не удалось проверить права. Убедитесь, что бот добавлен в канал.",
+        "reg_success": "🎉 **Регистрация завершена!**\n\n🔗 Ссылка предложки для вашего канала:\n`{sub_link}`",
+        "err_inv_not_admin": "❌ Ошибка: Чтобы стать админом бота, вы должны сначала стать админом канала в Telegram.",
+        "err_channel_not_found": "❌ Канал не найден или бот из него удален.",
+        "coadmin_registered_success": "✅ Вы успешно зарегистрированы как администратор этого канала в Onward!",
+        "coadmin_already_registered": "ℹ️ Вы уже являетесь администратором этого канала в боте.",
 
         # Админ Панель
+        "admin_welcome_no_channels": "👋 **Добро пожаловать в Onward!**\n\nЧтобы начать, добавьте меня в свой Telegram-канал как администратора. Я автоматически сгенерирую ссылку предложки для ваших подписчиков!",
         "admin_panel_welcome": "⚙️ **Панель управления Onward**\nВыберите канал для настройки:",
-        "btn_my_channels": "📢 Мои каналы",
-        "btn_channel_settings": "⚙️ Настройки кнопок",
-        "btn_my_profile_settings": "👤 Мой профиль админа",
-        "btn_get_link": "🔗 Получить ссылку предложки",
-        "btn_invite_coadmin": "👥 Добавить со-админа",
+        "admin_channel_manage": "📢 **Управление каналом «{ch_title}»**\nСтатус: {status}\n\n🔗 **Ссылка предложки:**\n`{sub_link}`",
+        "status_premium": "⭐ Premium",
+        "status_free": "🆓 Free",
+        "btn_set_btns": "⚙️ Настройки кнопок",
+        "btn_set_profile": "👤 Мой профиль админа",
+        "btn_add_coadmin": "👥 Добавить со-админа",
+        "btn_ban_list": "🚫 Заблокированные юзеры",
         "btn_premium": "⭐ Onward Premium",
-        "btn_language": "🌐 Язык / Language",
+        "btn_back_channels": "🔙 Назад к списку",
+        "header_set_btns": "⚙️ **Настройки отображения кнопок для подписчиков:**",
+        "header_set_profile": "👤 **Настройки отображения вашего профиля в предложке:**",
+        "btn_accepts_on": "✅ Принимать личные вопросы",
+        "btn_accepts_off": "❌ Не принимать личные вопросы",
+        "coadmin_text": "👥 **Ссылка для добавления со-админа:**\n`{inv_link}`\n\nПерешлите эту ссылку второму администратору. Он должен быть администратором вашего канала в Telegram.",
+        "ban_list_empty": "🎉 В этом канале нет заблокированных пользователей.",
+        "ban_list_header": "🚫 **Заблокированные пользователи канала:**",
+        "toast_unbanned": "✅ Пользователь успешно разблокирован!",
+        "admin_reply_priv_prompt": "💬 Введите текст личного ответа для подписчика:",
+        "admin_reply_pub_prompt": "📢 Введите текст ответа, который будет опубликован в канале:",
+        "sub_received_priv_reply": "💬 **Ответ от администрации канала [{channel_title}]:**\n\n{text}",
+        "sub_published_in_channel": "🎉 Ваш вопрос и ответ на него были опубликованы в канале!",
+        "sub_idea_published": "🎉 Ваша идея была опубликована в канале!",
+        "reply_sent_to_user_success": "✅ Ваш ответ успешно доставлен подписчику!",
+        "post_published_success": "✅ Пост успешно опубликован в канале!",
+        "card_banned_text": "🛑 Пользователь заблокирован в этом канале.",
+
+        # Оплата Stars
+        "premium_menu_text": "⭐ **Onward Premium**\n\nПодключите Premium и откройте продвинутые возможности для канала:\n• 🎨 Кастомное приветствие и правила\n• 🤖 Настройка автоответа подписчикам\n• 🚫 Отключение копирайта бота\n• 📊 Подробная статистика и экспорт\n\nВыберите тариф для оплаты Звёздами Telegram:",
+        "btn_plan_1m": "⭐ 1 Месяц — 50 XTR",
+        "btn_plan_3m": "⭐ 3 Месяца — 120 XTR",
+        "btn_plan_life": "⭐ Навсегда — 350 XTR",
+        "pay_success": "🎉 **Оплата прошла успешно!**\n\nДля канала `{channel_id}` успешно активирован статус **Onward Premium**.\nСпасибо за поддержку проекта!"
     },
 
     "en": {
@@ -62,43 +91,74 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "btn_question_all": "❓ Ask channel owners",
         "btn_question_admin": "👤 Ask specific admin",
         "btn_review": "⭐ Leave review & rating",
-
         "choose_anonymity": "How would you like to send this message?",
         "btn_anon": "🕵️ Anonymously",
         "btn_public": "👤 Publicly (@{username})",
-
         "prompt_send_idea": "💡 Type your idea or send media (photo/video/voice):",
         "prompt_send_question": "❓ Type your question (media attachments supported):",
         "prompt_select_rating": "⭐ Rate the channel from 1 to 5 stars:",
         "prompt_send_review_text": "✍️ Write a short comment (or tap Skip):",
         "btn_skip": "⏩ Skip",
-
         "msg_sent_success": "✅ Your message has been sent to the admins!",
         "review_saved_success": "🎉 Thank you for your review!",
         "review_cooldown_error": "⏳ You have already left a review. You can update it in {days_left} days.",
         "user_banned_error": "🛑 The channel administration has restricted you from sending messages.",
-
-        "admin_new_idea": "📥 **New idea for [{channel_title}]**\n👤 **Author:** {sender_info}\n\n💬 {text}",
-        "admin_new_question": "📥 **New question for [{channel_title}]**\n👤 **Author:** {sender_info}\n📌 **To:** {target_info}\n\n💬 {text}",
-        "admin_new_review": "⭐ **New review for [{channel_title}]**\nRating: {stars}\n💬 Comment: {text}",
 
         "btn_reply_private": "💬 Reply privately",
         "btn_reply_public": "📢 Post reply to channel",
         "btn_publish_idea": "🚀 Publish to channel",
         "btn_ban_user": "🚫 Ban user",
         "btn_unban_user": "🔄 Unban user",
+        "btn_back": "🔙 Back",
 
-        "channel_public_reply": "❓ **Question from subscriber:** {sender_str}\n*«{question_text}»*\n\n💬 **Answer:**\n*«{reply_text}»*\n\n🤖 *Ask a question: {bot_link}*",
-        "channel_public_idea": "💡 **Idea from subscriber:** {sender_str}\n\n{idea_text}\n\n🤖 *Suggest an idea: {bot_link}*",
+        "admin_new_idea": "📥 **New message for [{channel_title}]**\n📌 **Type:** 💡 Idea\n👤 **Author:** {sender_info}\n\n💬 {text}",
+        "admin_new_question": "📥 **New message for [{channel_title}]**\n📌 **Type:** ❓ Question\n👤 **Author:** {sender_info}\n\n💬 {text}",
 
+        "channel_setup_success": "🎉 **Channel «{channel_title}» successfully connected!**\n\n🔗 Your unique suggestion link for subscribers:\n`{sub_link}`\n\nPlace this link in your channel description or posts!",
+        "channel_setup_temp_post": "⚙️ **Onward Setup:** The administrator needs to press the button below to complete setup:",
+        "btn_complete_setup": "🔗 Complete Onward Setup",
+        "bot_removed_from_channel": "⚠️ The Onward bot was removed from the channel. Receiving messages paused.",
+        "err_not_channel_admin": "❌ Error: You are not an administrator of this channel.",
+        "err_check_rights_failed": "❌ Could not verify permissions. Ensure the bot is added to the channel.",
+        "reg_success": "🎉 **Registration complete!**\n\n🔗 Suggestion link for your channel:\n`{sub_link}`",
+        "err_inv_not_admin": "❌ Error: To become a bot admin, you must first be an admin of the channel in Telegram.",
+        "err_channel_not_found": "❌ Channel not found or bot was removed.",
+        "coadmin_registered_success": "✅ You have been successfully registered as a channel admin in Onward!",
+        "coadmin_already_registered": "ℹ️ You are already registered as an admin for this channel.",
+
+        "admin_welcome_no_channels": "👋 **Welcome to Onward!**\n\nTo start, add me as an administrator to your Telegram channel. I will automatically generate a suggestion box link for your subscribers!",
         "admin_panel_welcome": "⚙️ **Onward Control Panel**\nSelect a channel to configure:",
-        "btn_my_channels": "📢 My channels",
-        "btn_channel_settings": "⚙️ Button settings",
-        "btn_my_profile_settings": "👤 My admin profile",
-        "btn_get_link": "🔗 Get suggestion link",
-        "btn_invite_coadmin": "👥 Add co-admin",
+        "admin_channel_manage": "📢 **Channel Management «{ch_title}»**\nStatus: {status}\n\n🔗 **Suggestion link:**\n`{sub_link}`",
+        "status_premium": "⭐ Premium",
+        "status_free": "🆓 Free",
+        "btn_set_btns": "⚙️ Button settings",
+        "btn_set_profile": "👤 My admin profile",
+        "btn_add_coadmin": "👥 Add co-admin",
+        "btn_ban_list": "🚫 Banned users",
         "btn_premium": "⭐ Onward Premium",
-        "btn_language": "🌐 Language",
+        "btn_back_channels": "🔙 Back to list",
+        "header_set_btns": "⚙️ **Button display settings for subscribers:**",
+        "header_set_profile": "👤 **Your profile display settings:**",
+        "btn_accepts_on": "✅ Accept direct questions",
+        "btn_accepts_off": "❌ Do not accept direct questions",
+        "coadmin_text": "👥 **Link to add a co-admin:**\n`{inv_link}`\n\nForward this link to another administrator. They must be an admin of your Telegram channel.",
+        "ban_list_empty": "🎉 There are no banned users in this channel.",
+        "ban_list_header": "🚫 **Banned users for this channel:**",
+        "toast_unbanned": "✅ User successfully unbanned!",
+        "admin_reply_priv_prompt": "💬 Enter text for private reply to subscriber:",
+        "admin_reply_pub_prompt": "📢 Enter text for public reply to be posted in channel:",
+        "sub_received_priv_reply": "💬 **Reply from [{channel_title}] administration:**\n\n{text}",
+        "sub_published_in_channel": "🎉 Your question and answer have been published in the channel!",
+        "sub_idea_published": "🎉 Your idea has been published in the channel!",
+        "reply_sent_to_user_success": "✅ Your reply was successfully delivered to subscriber!",
+        "post_published_success": "✅ Post successfully published in channel!",
+        "card_banned_text": "🛑 User banned in this channel.",
+
+        "premium_menu_text": "⭐ **Onward Premium**\n\nUnlock advanced features for your channel:\n• 🎨 Custom welcome & rules\n• 🤖 Custom auto-replies\n• 🚫 Remove bot branding\n• 📊 Detailed analytics & export\n\nChoose a plan using Telegram Stars:",
+        "btn_plan_1m": "⭐ 1 Month — 50 XTR",
+        "btn_plan_3m": "⭐ 3 Months — 120 XTR",
+        "btn_plan_life": "⭐ Lifetime — 350 XTR",
+        "pay_success": "🎉 **Payment successful!**\n\n**Onward Premium** status is now active for channel `{channel_id}`.\nThank you for supporting the project!"
     },
 
     "hi": {
@@ -125,14 +185,50 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "btn_publish_idea": "🚀 चैनल में प्रकाशित करें",
         "btn_ban_user": "🚫 ब्लॉक करें",
         "btn_unban_user": "🔄 अनब्लॉक करें",
+        "btn_back": "🔙 वापस",
+        "channel_setup_success": "🎉 **चैनल «{channel_title}» सफलतापूर्वक जोड़ा गया!**\n\n`{sub_link}`",
+        "channel_setup_temp_post": "⚙️ **Onward सेटअप:**",
+        "btn_complete_setup": "🔗 सेटअप पूरा करें",
+        "bot_removed_from_channel": "⚠️ बोट चैनल से हटा दिया गया।",
+        "err_not_channel_admin": "❌ त्रुटि: आप इस चैनल के एडमिन नहीं हैं।",
+        "err_check_rights_failed": "❌ अनुमतियों की जांच नहीं की जा सकी।",
+        "reg_success": "🎉 **पंजीकरण पूरा हुआ!**\n\n`{sub_link}`",
+        "err_inv_not_admin": "❌ त्रुटि: आपको पहले टेलीग्राम चैनल का एडमिन होना चाहिए।",
+        "err_channel_not_found": "❌ चैनल नहीं मिला।",
+        "coadmin_registered_success": "✅ आप एडमिन के रूप में पंजीकृत हो गए हैं!",
+        "coadmin_already_registered": "ℹ️ आप पहले से ही एडमिन हैं।",
+        "admin_welcome_no_channels": "👋 **Onward में आपका स्वागत है!**",
         "admin_panel_welcome": "⚙️ **Onward कंट्रोल पैनल**",
-        "btn_my_channels": "📢 मेरे चैनल",
-        "btn_channel_settings": "⚙️ बटन सेटिंग्स",
-        "btn_my_profile_settings": "👤 मेरी एडमिन प्रोफाइल",
-        "btn_get_link": "🔗 लिंक प्राप्त करें",
-        "btn_invite_coadmin": "👥 एडमिन जोड़ें",
+        "admin_channel_manage": "📢 **चैनल प्रबंधन «{ch_title}»**",
+        "status_premium": "⭐ प्रीमियम",
+        "status_free": "🆓 मुफ्त",
+        "btn_set_btns": "⚙️ बटन सेटिंग्स",
+        "btn_set_profile": "👤 मेरी प्रोफाइल",
+        "btn_add_coadmin": "👥 एडमिन जोड़ें",
+        "btn_ban_list": "🚫 प्रतिबंधित उपयोगकर्ता",
         "btn_premium": "⭐ Onward प्रीमियम",
-        "btn_language": "🌐 भाषा (Language)",
+        "btn_back_channels": "🔙 वापस",
+        "header_set_btns": "⚙️ **बटन सेटिंग्स:**",
+        "header_set_profile": "👤 **प्रोफ़ाइल सेटिंग्स:**",
+        "btn_accepts_on": "✅ सीधे प्रश्न स्वीकार करें",
+        "btn_accepts_off": "❌ सीधे प्रश्न स्वीकार न करें",
+        "coadmin_text": "👥 **लिंक:**\n`{inv_link}`",
+        "ban_list_empty": "🎉 कोई ब्लॉक यूजर नहीं है।",
+        "ban_list_header": "🚫 **ब्लॉक यूजर:**",
+        "toast_unbanned": "✅ अनब्लॉक कर दिया गया!",
+        "admin_reply_priv_prompt": "💬 निजी उत्तर दर्ज करें:",
+        "admin_reply_pub_prompt": "📢 सार्वजनिक उत्तर दर्ज करें:",
+        "sub_received_priv_reply": "💬 **[{channel_title}] का उत्तर:**\n\n{text}",
+        "sub_published_in_channel": "🎉 आपका उत्तर चैनल में प्रकाशित हो गया है!",
+        "sub_idea_published": "🎉 आपका विचार चैनल में प्रकाशित हो गया है!",
+        "reply_sent_to_user_success": "✅ उत्तर भेज दिया गया!",
+        "post_published_success": "✅ पोस्ट प्रकाशित हो गई!",
+        "card_banned_text": "🛑 यूजर ब्लॉक हो गया।",
+        "premium_menu_text": "⭐ **Onward प्रीमियम**",
+        "btn_plan_1m": "⭐ 1 महीना — 50 XTR",
+        "btn_plan_3m": "⭐ 3 महीने — 120 XTR",
+        "btn_plan_life": "⭐ लाइफटाइम — 350 XTR",
+        "pay_success": "🎉 **भुगतान सफल रहा!**"
     },
 
     "es": {
@@ -159,30 +255,60 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "btn_publish_idea": "🚀 Publicar en el canal",
         "btn_ban_user": "🚫 Bloquear usuario",
         "btn_unban_user": "🔄 Desbloquear",
+        "btn_back": "🔙 Volver",
+        "channel_setup_success": "🎉 **¡Canal «{channel_title}» conectado con éxito!**\n\n`{sub_link}`",
+        "channel_setup_temp_post": "⚙️ **Configuración de Onward:**",
+        "btn_complete_setup": "🔗 Completar configuración",
+        "bot_removed_from_channel": "⚠️ El bot fue eliminado del canal.",
+        "err_not_channel_admin": "❌ Error: No eres administrador de este canal.",
+        "err_check_rights_failed": "❌ No se pudieron verificar los permisos.",
+        "reg_success": "🎉 **¡Registro completado!**\n\n`{sub_link}`",
+        "err_inv_not_admin": "❌ Error: Primero debes ser admin del canal en Telegram.",
+        "err_channel_not_found": "❌ Canal no encontrado.",
+        "coadmin_registered_success": "✅ ¡Te has registrado como administrador con éxito!",
+        "coadmin_already_registered": "ℹ️ Ya eres administrador de este canal.",
+        "admin_welcome_no_channels": "👋 **¡Bienvenido a Onward!**",
         "admin_panel_welcome": "⚙️ **Panel de control Onward**",
-        "btn_my_channels": "📢 Mis canales",
-        "btn_channel_settings": "⚙️ Ajustes de botones",
-        "btn_my_profile_settings": "👤 Mi perfil de admin",
-        "btn_get_link": "🔗 Obtener enlace",
-        "btn_invite_coadmin": "👥 Añadir co-admin",
+        "admin_channel_manage": "📢 **Gestión del canal «{ch_title}»**",
+        "status_premium": "⭐ Premium",
+        "status_free": "🆓 Gratis",
+        "btn_set_btns": "⚙️ Ajustes de botones",
+        "btn_set_profile": "👤 Mi perfil de admin",
+        "btn_add_coadmin": "👥 Añadir co-admin",
+        "btn_ban_list": "🚫 Usuarios bloqueados",
         "btn_premium": "⭐ Onward Premium",
-        "btn_language": "🌐 Idioma",
+        "btn_back_channels": "🔙 Volver a la lista",
+        "header_set_btns": "⚙️ **Ajustes de botones:**",
+        "header_set_profile": "👤 **Ajustes de perfil:**",
+        "btn_accepts_on": "✅ Aceptar preguntas directas",
+        "btn_accepts_off": "❌ No aceptar preguntas directas",
+        "coadmin_text": "👥 **Enlace:**\n`{inv_link}`",
+        "ban_list_empty": "🎉 No hay usuarios bloqueados.",
+        "ban_list_header": "🚫 **Usuarios bloqueados:**",
+        "toast_unbanned": "✅ ¡Usuario desbloqueado!",
+        "admin_reply_priv_prompt": "💬 Introduce respuesta privada:",
+        "admin_reply_pub_prompt": "📢 Introduce respuesta para el canal:",
+        "sub_received_priv_reply": "💬 **Respuesta de [{channel_title}]:**\n\n{text}",
+        "sub_published_in_channel": "🎉 ¡Tu pregunta y respuesta se publicaron en el canal!",
+        "sub_idea_published": "🎉 ¡Tu idea fue publicada en el canal!",
+        "reply_sent_to_user_success": "✅ ¡Respuesta entregada con éxito!",
+        "post_published_success": "✅ ¡Publicación exitosa!",
+        "card_banned_text": "🛑 Usuario bloqueado.",
+        "premium_menu_text": "⭐ **Onward Premium**",
+        "btn_plan_1m": "⭐ 1 Mes — 50 XTR",
+        "btn_plan_3m": "⭐ 3 Meses — 120 XTR",
+        "btn_plan_life": "⭐ Para siempre — 350 XTR",
+        "pay_success": "🎉 **¡Pago exitoso!**"
     }
 }
 
 
 def t(key: str, lang: str = "ru", **kwargs) -> str:
-    """
-    Получить локализованный текст по ключу.
-    Если языка нет — используется 'en'. Если ключа нет в языке — возвращает сам ключ.
-    """
     lang_dict = TEXTS.get(lang, TEXTS["en"])
     text_template = lang_dict.get(key) or TEXTS["en"].get(key, key)
-
     if kwargs:
         try:
             return text_template.format(**kwargs)
         except KeyError:
             return text_template
-
     return text_template
