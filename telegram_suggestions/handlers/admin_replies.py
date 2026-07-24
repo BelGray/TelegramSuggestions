@@ -2,7 +2,7 @@ import logging
 from aiogram import Router, Bot, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions
 from sqlalchemy import select, update
 
 from telegram_suggestions.database.engine import async_session
@@ -18,8 +18,18 @@ class AdminReplyFSM(StatesGroup):
     waiting_for_public_reply = State()
 
 
+async def get_sender_display_name(bot: Bot, sender_id: int) -> str:
+    """Получить открытое имя/юзернейм автора для публикации"""
+    try:
+        chat = await bot.get_chat(sender_id)
+        if chat.username:
+            return f"@{chat.username}"
+        return chat.first_name or "Подписчика"
+    except Exception:
+        return "Подписчика"
+
+
 async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, actor_name: str, action_key: str, answer_text: str, bot: Bot):
-    """Синхронизация и обновление карточек у всех админов канала"""
     notifications = await get_admin_notifications(db_msg_id)
 
     async with async_session() as session:
@@ -49,6 +59,7 @@ async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, actor_name: s
                 await bot.edit_message_text(chat_id=notif.admin_user_id, message_id=notif.telegram_message_id, text=card_text, reply_markup=None)
         except Exception as e:
             logging.error(f"Не удалось обновить карточку у админа {notif.admin_user_id}: {e}")
+
 
 @router.callback_query(F.data.startswith("rep_priv_"))
 async def start_private_reply(callback: types.CallbackQuery, state: FSMContext):
@@ -109,7 +120,6 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
             await session.execute(update(Message).where(Message.id == msg_id).values(status="answered"))
             await session.commit()
 
-        # Имя админа берется прямо из Telegram
         actor_name = message.from_user.first_name or "Admin"
         await sync_all_admin_cards(msg_id, message.from_user.id, actor_name, "action_priv_reply", message.text or "[Media]", bot)
 
@@ -162,7 +172,13 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
 
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
-    sender_str = t("anon_question_title", lang) if orig_msg.is_anonymous else t("public_question_title", lang)
+    # Подтягиваем автора в зависимости от анонимности
+    if orig_msg.is_anonymous:
+        sender_str = t("anon_question_title", lang)
+    else:
+        author_str = await get_sender_display_name(bot, orig_msg.sender_id)
+        sender_str = t("public_question_title_open", lang, author_str=author_str)
+
     reply_hdr = t("channel_reply_header", lang)
     ask_prompt = t("channel_ask_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
@@ -176,7 +192,11 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
         post_text += f"\n\n{ask_prompt}"
 
     try:
-        await bot.send_message(chat_id=orig_msg.channel_id, text=post_text)
+        await bot.send_message(
+            chat_id=orig_msg.channel_id,
+            text=post_text,
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
 
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
@@ -223,7 +243,13 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
 
     bot_link = f"https://t.me/{bot_info.username}?start=c_{ch_obj.deep_link_hash}" if ch_obj else ""
 
-    idea_hdr = t("idea_post_header", lang)
+    # Проверка анонимности идеи
+    if orig_msg.is_anonymous:
+        idea_hdr = t("idea_post_header_anon", lang)
+    else:
+        author_str = await get_sender_display_name(bot, orig_msg.sender_id)
+        idea_hdr = t("idea_post_header_public", lang, author_str=author_str)
+
     idea_prompt = t("idea_suggest_prompt", lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
 
     post_text = f"{idea_hdr}\n\n{orig_msg.text or ''}"
@@ -231,12 +257,13 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         post_text += f"\n\n{idea_prompt}"
 
     try:
+        no_preview = LinkPreviewOptions(is_disabled=True)
         if orig_msg.media_type == "photo":
             await bot.send_photo(chat_id=orig_msg.channel_id, photo=orig_msg.media_file_id, caption=post_text)
         elif orig_msg.media_type == "video":
             await bot.send_video(chat_id=orig_msg.channel_id, video=orig_msg.media_file_id, caption=post_text)
         else:
-            await bot.send_message(chat_id=orig_msg.channel_id, text=post_text)
+            await bot.send_message(chat_id=orig_msg.channel_id, text=post_text, link_preview_options=no_preview)
 
         sender_user = await get_or_create_user(orig_msg.sender_id)
         try:
