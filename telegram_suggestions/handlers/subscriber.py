@@ -8,8 +8,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram_suggestions.database.requests import (
     get_or_create_user,
     get_channel_by_hash,
-    get_channel_rating,
     get_channel_by_id,
+    get_channel_rating,
     get_channel_admins,
     check_review_cooldown,
     is_user_banned,
@@ -85,7 +85,6 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     kb = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-    # Кастомное приветствие работает, если активирован Премиум
     has_premium = await is_channel_premium(channel)
     if has_premium and channel.welcome_message:
         welcome_text = channel.welcome_message
@@ -235,63 +234,67 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
         admins_list = await get_channel_admins(channel_id)
         target_admins = [a.user_id for a in admins_list]
 
-        # Внутри receive_suggestion_content в файле subscriber.py:
-        for adm_id in target_admins:
-            try:
-                adm_user = await get_or_create_user(adm_id)
-                adm_lang = adm_user.language_code
+    delivered_count = 0
 
-                media_txt = t("media_placeholder", adm_lang)
-                admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
-                                    text=text or media_txt) if msg_type == "idea" else t("admin_new_question", adm_lang,
-                                                                                         channel_title=ch_title,
-                                                                                         sender_info=sender_info,
-                                                                                         text=text or media_txt)
+    for adm_id in target_admins:
+        try:
+            adm_user = await get_or_create_user(adm_id)
+            adm_lang = adm_user.language_code
 
-                buttons = []
-                if msg_type == "idea":
-                    buttons.append([InlineKeyboardButton(text=t("btn_publish_idea", adm_lang),
-                                                         callback_data=f"pub_idea_{db_msg.id}")])
+            media_txt = t("media_placeholder", adm_lang)
+            admin_card_text = t("admin_new_idea", adm_lang, channel_title=ch_title, sender_info=sender_info,
+                                text=text or media_txt) if msg_type == "idea" else t("admin_new_question", adm_lang,
+                                                                                     channel_title=ch_title,
+                                                                                     sender_info=sender_info,
+                                                                                     text=text or media_txt)
 
-                buttons.append([
-                    InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
-                    InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
-                ])
-                buttons.append([InlineKeyboardButton(text=t("btn_ban_user", adm_lang),
-                                                     callback_data=f"ban_{channel_id}_{user_id}")])
+            buttons = []
+            if msg_type == "idea":
+                buttons.append(
+                    [InlineKeyboardButton(text=t("btn_publish_idea", adm_lang), callback_data=f"pub_idea_{db_msg.id}")])
 
-                kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+            buttons.append([
+                InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
+                InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
+            ])
+            buttons.append(
+                [InlineKeyboardButton(text=t("btn_ban_user", adm_lang), callback_data=f"ban_{channel_id}_{user_id}")])
 
-                if media_type == "photo":
-                    sent_m = await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text,
-                                                  reply_markup=kb)
-                elif media_type == "video":
-                    sent_m = await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text,
-                                                  reply_markup=kb)
-                elif media_type == "voice":
-                    sent_m = await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text,
-                                                  reply_markup=kb)
-                elif media_type == "document":
-                    sent_m = await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
-                                                     reply_markup=kb)
-                else:
-                    sent_m = await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
+            kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-                # Сохраняем ID отправленного сообщения для синхронизации
-                if sent_m:
-                    await add_admin_notification(db_msg.id, adm_id, sent_m.message_id)
+            if media_type == "photo":
+                sent_m = await bot.send_photo(chat_id=adm_id, photo=media_file_id, caption=admin_card_text,
+                                              reply_markup=kb)
+            elif media_type == "video":
+                sent_m = await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text,
+                                              reply_markup=kb)
+            elif media_type == "voice":
+                sent_m = await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text,
+                                              reply_markup=kb)
+            elif media_type == "document":
+                sent_m = await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
+                                                 reply_markup=kb)
+            else:
+                sent_m = await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
 
-            except Exception as e:
-                logging.error(f"Ошибка отправки сообщения админу {adm_id}: {e}")
+            if sent_m:
+                delivered_count += 1
+                await add_admin_notification(db_msg.id, adm_id, sent_m.message_id)
 
-    # Уведомление об успешной отправке + Автоответ если включен Премиум
-    channel_obj = await get_channel_by_id(channel_id)
-    has_prem = await is_channel_premium(channel_obj)
+        except Exception as e:
+            logging.error(f"Не удалось отправить сообщение админу {adm_id}: {e}")
 
-    if has_prem and channel_obj.auto_reply:
-        await message.answer(f"{t('msg_sent_success', lang)}\n\n🤖 **Автоответ канала:**\n{channel_obj.auto_reply}")
+    if delivered_count > 0:
+        channel_obj = await get_channel_by_id(channel_id)
+        has_prem = await is_channel_premium(channel_obj)
+
+        if has_prem and channel_obj.auto_reply:
+            reply_hdr = t("auto_reply_prefix", lang)
+            await message.answer(f"{t('msg_sent_success', lang)}\n\n{reply_hdr}\n{channel_obj.auto_reply}")
+        else:
+            await message.answer(t("msg_sent_success", lang))
     else:
-        await message.answer(t("msg_sent_success", lang))
+        await message.answer(t("err_delivery_failed_admin_not_started", lang))
 
     await state.clear()
 
@@ -342,16 +345,16 @@ async def rating_selected(callback: types.CallbackQuery, state: FSMContext):
 
 
 @router.message(SubscriberFSM.waiting_for_review_text)
-async def process_review_text(message: types.Message, state: FSMContext):
-    await save_and_notify_review(message.from_user.id, message.text, state, message)
+async def process_review_text(message: types.Message, state: FSMContext, bot: Bot):
+    await save_and_notify_review(message.from_user.id, message.text, state, message, bot)
 
 
 @router.callback_query(SubscriberFSM.waiting_for_review_text, F.data == "skip_review_text")
-async def process_review_skip(callback: types.CallbackQuery, state: FSMContext):
-    await save_and_notify_review(callback.from_user.id, None, state, callback.message)
+async def process_review_skip(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    await save_and_notify_review(callback.from_user.id, None, state, callback.message, bot)
 
 
-async def save_and_notify_review(user_id: int, text: str, state: FSMContext, event_obj):
+async def save_and_notify_review(user_id: int, text: str, state: FSMContext, event_obj, bot: Bot):
     data = await state.get_data()
     channel_id = data["channel_id"]
     rating_value = data["rating_value"]
@@ -372,5 +375,26 @@ async def save_and_notify_review(user_id: int, text: str, state: FSMContext, eve
         await event_obj.answer(t("review_saved_success", lang))
     else:
         await event_obj.edit_text(t("review_saved_success", lang))
+
+    try:
+        chat = await bot.get_chat(channel_id)
+        ch_title = chat.title or "Channel"
+    except Exception:
+        ch_title = "Channel"
+
+    admins_list = await get_channel_admins(channel_id)
+    stars_str = f"{rating_value} ⭐"
+
+    for adm in admins_list:
+        try:
+            adm_user = await get_or_create_user(adm.user_id)
+            adm_lang = adm_user.language_code
+
+            review_txt = text if text else "-"
+            card_text = t("admin_new_review", adm_lang, channel_title=ch_title, stars=stars_str, text=review_txt)
+
+            await bot.send_message(chat_id=adm.user_id, text=card_text)
+        except Exception as e:
+            logging.error(f"Не удалось отправить отзыв админу {adm.user_id}: {e}")
 
     await state.clear()

@@ -1,8 +1,10 @@
+import csv
+import io
 from aiogram import Router, Bot, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
 from telegram_suggestions.database.requests import (
     get_or_create_user,
@@ -15,7 +17,9 @@ from telegram_suggestions.database.requests import (
     unban_user,
     is_channel_premium,
     set_channel_welcome_message,
-    set_channel_auto_reply
+    set_channel_auto_reply,
+    get_channel_stats,
+    get_channel_reviews_for_export
 )
 from telegram_suggestions.utils.localization import t
 
@@ -125,6 +129,7 @@ async def show_manage_premium_menu(callback: types.CallbackQuery, channel_id: in
     btn_copy_status = t("btn_copyright_on", lang) if show_copy else t("btn_copyright_off", lang)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("btn_channel_stats", lang), callback_data=f"prem_stats_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_set_welcome", lang), callback_data=f"set_welc_{channel_id}")],
         [InlineKeyboardButton(text=t("btn_set_autoreply", lang), callback_data=f"set_autorep_{channel_id}")],
         [InlineKeyboardButton(text=btn_copy_status, callback_data=f"tog_copy_{channel_id}")],
@@ -138,6 +143,75 @@ async def show_manage_premium_menu(callback: types.CallbackQuery, channel_id: in
 async def manage_premium_menu_entry(callback: types.CallbackQuery):
     channel_id = int(callback.data.replace("prem_manage_", ""))
     await show_manage_premium_menu(callback, channel_id)
+
+
+# Просмотр статистики и экспорт CSV
+@router.callback_query(F.data.startswith("prem_stats_"))
+async def show_premium_stats(callback: types.CallbackQuery, bot: Bot):
+    channel_id = int(callback.data.replace("prem_stats_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    try:
+        chat = await bot.get_chat(channel_id)
+        ch_title = chat.title or "Channel"
+    except Exception:
+        ch_title = "Channel"
+
+    stats = await get_channel_stats(channel_id)
+
+    text = t(
+        "stats_menu_text",
+        lang,
+        ch_title=ch_title,
+        ideas_count=stats["ideas_count"],
+        questions_count=stats["questions_count"],
+        reviews_count=stats["reviews_count"],
+        rating_avg=stats["rating_avg"],
+        processed_count=stats["processed_count"]
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("btn_export_csv", lang), callback_data=f"export_csv_{channel_id}")],
+        [InlineKeyboardButton(text=t("btn_back", lang), callback_data=f"prem_manage_{channel_id}")]
+    ])
+
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("export_csv_"))
+async def export_reviews_csv(callback: types.CallbackQuery, bot: Bot):
+    channel_id = int(callback.data.replace("export_csv_", ""))
+    user = await get_or_create_user(callback.from_user.id)
+    lang = user.language_code
+
+    reviews = await get_channel_reviews_for_export(channel_id)
+    if not reviews:
+        await callback.answer(t("err_no_reviews_export", lang), show_alert=True)
+        return
+
+    try:
+        chat = await bot.get_chat(channel_id)
+        ch_title = chat.title or "Channel"
+    except Exception:
+        ch_title = "Channel"
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Date", "Rating", "Comment"])
+
+    for r in reviews:
+        date_str = r.created_at.strftime("%Y-%m-%d %H:%M")
+        writer.writerow([date_str, r.rating_value or "", r.text or ""])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    file = BufferedInputFile(csv_bytes, filename=f"reviews_channel_{channel_id}.csv")
+
+    await callback.message.answer_document(
+        document=file,
+        caption=t("csv_file_caption", lang, ch_title=ch_title)
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("set_welc_"))

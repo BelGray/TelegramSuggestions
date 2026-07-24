@@ -325,3 +325,59 @@ async def get_admin_notifications(db_message_id: int) -> List[AdminNotification]
         stmt = select(AdminNotification).where(AdminNotification.db_message_id == db_message_id)
         res = await session.execute(stmt)
         return list(res.scalars().all())
+
+async def get_channel_stats(channel_id: int) -> Dict[str, Any]:
+    """Подсчет полной аналитики канала"""
+    async with async_session() as session:
+        # Идеи
+        res_ideas = await session.execute(
+            select(func.count(Message.id)).where(Message.channel_id == channel_id, Message.type == "idea")
+        )
+        ideas_count = res_ideas.scalar() or 0
+
+        # Вопросы
+        res_q = await session.execute(
+            select(func.count(Message.id)).where(
+                Message.channel_id == channel_id,
+                Message.type.in_(["question_all", "question_admin"])
+            )
+        )
+        questions_count = res_q.scalar() or 0
+
+        # Отзывы и средняя оценка
+        res_rev = await session.execute(
+            select(func.count(Message.id), func.avg(Message.rating_value)).where(
+                Message.channel_id == channel_id, Message.type == "review"
+            )
+        )
+        rev_count, rev_avg = res_rev.first()
+        rev_count = rev_count or 0
+        rev_avg = round(float(rev_avg), 1) if rev_avg else 0.0
+
+        # Обработанные (отвеченные / опубликованные)
+        res_proc = await session.execute(
+            select(func.count(Message.id)).where(
+                Message.channel_id == channel_id,
+                Message.status.in_(["answered", "published"])
+            )
+        )
+        processed_count = res_proc.scalar() or 0
+
+        return {
+            "ideas_count": ideas_count,
+            "questions_count": questions_count,
+            "reviews_count": rev_count,
+            "rating_avg": rev_avg,
+            "processed_count": processed_count
+        }
+
+
+async def get_channel_reviews_for_export(channel_id: int) -> List[Message]:
+    """Выборка всех отзывов для экспорта в CSV"""
+    async with async_session() as session:
+        stmt = select(Message).where(
+            Message.channel_id == channel_id,
+            Message.type == "review"
+        ).order_by(Message.created_at.desc())
+        res = await session.execute(stmt)
+        return list(res.scalars().all())
