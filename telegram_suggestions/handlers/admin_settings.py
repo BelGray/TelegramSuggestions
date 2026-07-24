@@ -78,10 +78,10 @@ async def back_to_channels(callback: types.CallbackQuery, bot: Bot, state: FSMCo
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("adm_ch_"))
-async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+# ==================== МЕНЮ УПРАВЛЕНИЯ КАНАЛОМ ====================
+
+async def show_channel_menu(callback: types.CallbackQuery, channel_id: int, bot: Bot, state: FSMContext):
     await state.clear()
-    channel_id = int(callback.data.replace("adm_ch_", ""))
     user_id = callback.from_user.id
 
     if not await is_user_channel_admin(channel_id, user_id):
@@ -132,6 +132,12 @@ async def open_channel_menu(callback: types.CallbackQuery, bot: Bot, state: FSMC
     await callback.message.edit_text(text, reply_markup=kb)
 
 
+@router.callback_query(F.data.startswith("adm_ch_"))
+async def open_channel_menu_entry(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+    channel_id = int(callback.data.replace("adm_ch_", ""))
+    await show_channel_menu(callback, channel_id, bot, state)
+
+
 # ==================== ВЫБОР ЯЗЫКА КАНАЛА ====================
 
 @router.callback_query(F.data.startswith("set_ch_lang_"))
@@ -179,7 +185,7 @@ async def process_change_channel_language(callback: types.CallbackQuery, bot: Bo
 
     await set_channel_language(channel_id, new_lang)
     await callback.answer(t("toast_ch_lang_updated", lang))
-    await open_channel_menu(callback, bot, state)
+    await show_channel_menu(callback, channel_id, bot, state)
 
 
 # ==================== УПРАВЛЕНИЕ ПРЕМИУМ НАСТРОЙКАМИ ====================
@@ -632,7 +638,7 @@ async def process_unban_user(callback: types.CallbackQuery):
         await callback.answer(t("err_not_channel_admin", "ru"), show_alert=True)
         return
 
-    user = await get_or_create_user(user_id)
+    user = await get_or_create_user(callback.from_user.id)
     lang = user.language_code
 
     await unban_user(channel_id, target_user_id)
