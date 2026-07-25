@@ -2,7 +2,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from config import config
 from database.models import Base
 
-engine = create_async_engine(config.DB_URL, echo=False)
+# Добавлены pool_pre_ping и pool_recycle для защиты от усыпления соединений Neon.tech
+engine = create_async_engine(
+    config.DB_URL,
+    echo=False,
+    pool_recycle=300,   # Авто-обновление подключений каждые 5 минут
+    pool_pre_ping=True  # Авто-проверка живости соединения перед каждым запросом
+)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
