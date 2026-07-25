@@ -123,6 +123,11 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
             await bot.send_photo(chat_id=orig_msg.sender_id, photo=message.photo[-1].file_id, caption=reply_text)
         elif message.video:
             await bot.send_video(chat_id=orig_msg.sender_id, video=message.video.file_id, caption=reply_text)
+        elif message.video_note:
+            await bot.send_video_note(chat_id=orig_msg.sender_id, video_note=message.video_note.file_id)
+            await bot.send_message(chat_id=orig_msg.sender_id, text=reply_text)
+        elif message.voice:
+            await bot.send_voice(chat_id=orig_msg.sender_id, voice=message.voice.file_id, caption=reply_text)
         else:
             await bot.send_message(chat_id=orig_msg.sender_id, text=reply_text)
 
@@ -192,7 +197,7 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
         await state.clear()
         return
 
-    channel_lang = ch_obj.language_code  # Пост формируется на языке КАНАЛА
+    channel_lang = ch_obj.language_code
 
     has_prem = await is_channel_premium(ch_obj)
     settings = ch_obj.settings or {}
@@ -270,7 +275,7 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         await callback.answer(t("err_channel_not_found", lang), show_alert=True)
         return
 
-    channel_lang = ch_obj.language_code  # Пост формируется на языке КАНАЛА
+    channel_lang = ch_obj.language_code
 
     has_prem = await is_channel_premium(ch_obj)
     settings = ch_obj.settings or {}
@@ -296,6 +301,15 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
             await bot.send_photo(chat_id=orig_msg.channel_id, photo=orig_msg.media_file_id, caption=post_text)
         elif orig_msg.media_type == "video":
             await bot.send_video(chat_id=orig_msg.channel_id, video=orig_msg.media_file_id, caption=post_text)
+        elif orig_msg.media_type == "video_note":
+            await bot.send_video_note(chat_id=orig_msg.channel_id, video_note=orig_msg.media_file_id)
+            await bot.send_message(chat_id=orig_msg.channel_id, text=post_text, link_preview_options=no_preview)
+        elif orig_msg.media_type == "voice":
+            await bot.send_voice(chat_id=orig_msg.channel_id, voice=orig_msg.media_file_id, caption=post_text)
+        elif orig_msg.media_type == "audio":
+            await bot.send_audio(chat_id=orig_msg.channel_id, audio=orig_msg.media_file_id, caption=post_text)
+        elif orig_msg.media_type == "document":
+            await bot.send_document(chat_id=orig_msg.channel_id, document=orig_msg.media_file_id, caption=post_text)
         else:
             await bot.send_message(chat_id=orig_msg.channel_id, text=post_text, link_preview_options=no_preview)
 
@@ -317,7 +331,6 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
         await callback.message.answer(t("err_publish_failed", lang, error=str(e)))
 
 
-# Уточненный префикс ban_user_ против хрупкого роутинга
 @router.callback_query(F.data.startswith("ban_user_"))
 async def ban_from_card(callback: types.CallbackQuery):
     parts = callback.data.split("_")

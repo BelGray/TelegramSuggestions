@@ -5,7 +5,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from database.requests import set_user_language
 
 from database.requests import (
     get_or_create_user,
@@ -17,7 +16,8 @@ from database.requests import (
     is_user_banned,
     add_message,
     is_channel_premium,
-    add_admin_notification
+    add_admin_notification,
+    set_user_language
 )
 from utils.localization import t
 
@@ -31,6 +31,8 @@ class SubscriberFSM(StatesGroup):
     waiting_for_review_rating = State()
     waiting_for_review_text = State()
 
+
+# ==================== 1. ВХОД ПО ССЫЛКЕ КАНАЛА (c_HASH) ====================
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith("c_")))
 async def open_subscriber_menu(message: types.Message, command: CommandObject, state: FSMContext, bot: Bot):
@@ -92,6 +94,8 @@ async def open_subscriber_menu(message: types.Message, command: CommandObject, s
 
     await message.answer(welcome_text, reply_markup=kb)
 
+
+# ==================== 2. ВЫБОР АНОНИМНОСТИ ====================
 
 async def ask_anonymity(callback: types.CallbackQuery, state: FSMContext, lang: str):
     username = callback.from_user.username or callback.from_user.first_name
@@ -180,6 +184,8 @@ async def process_anonymity_choice(callback: types.CallbackQuery, state: FSMCont
         await state.set_state(SubscriberFSM.waiting_for_question_all)
 
 
+# ==================== 3. ОТПРАВКА ИДЕИ ИЛИ ВОПРОСА ====================
+
 @router.message(StateFilter(SubscriberFSM.waiting_for_idea, SubscriberFSM.waiting_for_question_all))
 async def receive_suggestion_content(message: types.Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
@@ -195,12 +201,17 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     text = message.text or message.caption or ""
     media_file_id, media_type = None, None
 
+    # Добавлена поддержка video_note (кружочки) и audio
     if message.photo:
         media_file_id, media_type = message.photo[-1].file_id, "photo"
     elif message.video:
         media_file_id, media_type = message.video.file_id, "video"
+    elif message.video_note:
+        media_file_id, media_type = message.video_note.file_id, "video_note"
     elif message.voice:
         media_file_id, media_type = message.voice.file_id, "voice"
+    elif message.audio:
+        media_file_id, media_type = message.audio.file_id, "audio"
     elif message.document:
         media_file_id, media_type = message.document.file_id, "document"
 
@@ -252,7 +263,6 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
                 InlineKeyboardButton(text=t("btn_reply_private", adm_lang), callback_data=f"rep_priv_{db_msg.id}"),
                 InlineKeyboardButton(text=t("btn_reply_public", adm_lang), callback_data=f"rep_pub_{db_msg.id}")
             ])
-            # Используем уточненный префикс ban_user_
             buttons.append([InlineKeyboardButton(text=t("btn_ban_user", adm_lang),
                                                  callback_data=f"ban_user_{channel_id}_{user_id}")])
 
@@ -264,8 +274,14 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
             elif media_type == "video":
                 sent_m = await bot.send_video(chat_id=adm_id, video=media_file_id, caption=admin_card_text,
                                               reply_markup=kb)
+            elif media_type == "video_note":
+                await bot.send_video_note(chat_id=adm_id, video_note=media_file_id)
+                sent_m = await bot.send_message(chat_id=adm_id, text=admin_card_text, reply_markup=kb)
             elif media_type == "voice":
                 sent_m = await bot.send_voice(chat_id=adm_id, voice=media_file_id, caption=admin_card_text,
+                                              reply_markup=kb)
+            elif media_type == "audio":
+                sent_m = await bot.send_audio(chat_id=adm_id, audio=media_file_id, caption=admin_card_text,
                                               reply_markup=kb)
             elif media_type == "document":
                 sent_m = await bot.send_document(chat_id=adm_id, document=media_file_id, caption=admin_card_text,
@@ -295,6 +311,8 @@ async def receive_suggestion_content(message: types.Message, state: FSMContext, 
     await state.clear()
 
 
+# ==================== 4. ОСТАВИТЬ ОТЗЫВ И ОЦЕНКУ ====================
+
 @router.callback_query(F.data.startswith("sub_review_"))
 async def start_review(callback: types.CallbackQuery, state: FSMContext):
     channel_id = int(callback.data.replace("sub_review_", ""))
@@ -304,7 +322,6 @@ async def start_review(callback: types.CallbackQuery, state: FSMContext):
 
     can_review, days_left = await check_review_cooldown(channel_id, user_id)
     if not can_review:
-        # Всплывающее предупреждение alert без повторных спам-кликов
         await callback.answer(t("review_cooldown_error", lang, days_left=days_left), show_alert=True)
         return
 
@@ -392,6 +409,10 @@ async def save_and_notify_review(user_id: int, text: str, state: FSMContext, eve
             logging.error(f"Не удалось отправить отзыв админу {adm.user_id}: {e}")
 
     await state.clear()
+
+
+# ==================== 5. СМЕНА ЛИЧНОГО ЯЗЫКА ПОЛЬЗОВАТЕЛЯ (/language) ====================
+
 
 @router.message(Command("language"))
 @router.message(Command("lang"))
