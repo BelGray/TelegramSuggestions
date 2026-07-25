@@ -4,6 +4,8 @@ from aiogram.filters import CommandStart, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from database.requests import set_user_language
 
 from database.requests import (
     get_or_create_user,
@@ -390,3 +392,38 @@ async def save_and_notify_review(user_id: int, text: str, state: FSMContext, eve
             logging.error(f"Не удалось отправить отзыв админу {adm.user_id}: {e}")
 
     await state.clear()
+
+@router.message(Command("language"))
+@router.message(Command("lang"))
+async def cmd_choose_language(message: types.Message):
+    user_id = message.from_user.id
+    user = await get_or_create_user(user_id, message.from_user.language_code)
+    curr = user.language_code
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'ru' else '⚪'} 🇷🇺 Русский", callback_data="usr_lang_ru")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'en' else '⚪'} 🇬🇧 English", callback_data="usr_lang_en")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'es' else '⚪'} 🇪🇸 Español", callback_data="usr_lang_es")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'hi' else '⚪'} 🇮🇳 हिन्दी", callback_data="usr_lang_hi")]
+    ])
+
+    await message.answer(t("prompt_choose_user_lang", curr), reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("usr_lang_"))
+async def process_user_language_change(callback: types.CallbackQuery):
+    new_lang = callback.data.replace("usr_lang_", "")
+    user_id = callback.from_user.id
+
+    await set_user_language(user_id, new_lang)
+    await callback.answer(t("toast_user_lang_updated", new_lang), show_alert=True)
+
+    curr = new_lang
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'ru' else '⚪'} 🇷🇺 Русский", callback_data="usr_lang_ru")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'en' else '⚪'} 🇬🇧 English", callback_data="usr_lang_en")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'es' else '⚪'} 🇪🇸 Español", callback_data="usr_lang_es")],
+        [InlineKeyboardButton(text=f"{'🟢' if curr == 'hi' else '⚪'} 🇮🇳 हिन्दी", callback_data="usr_lang_hi")]
+    ])
+
+    await callback.message.edit_text(t("prompt_choose_user_lang", new_lang), reply_markup=kb)

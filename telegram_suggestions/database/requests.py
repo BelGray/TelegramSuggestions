@@ -373,3 +373,10 @@ async def set_channel_language(channel_id: int, language_code: str):
         stmt = update(Channel).where(Channel.id == channel_id).values(language_code=language_code)
         await session.execute(stmt)
         await session.commit()
+
+async def set_user_language(user_id: int, language_code: str):
+    """Обновить личный язык интерфейса пользователя"""
+    async with async_session() as session:
+        stmt = update(User).where(User.id == user_id).values(language_code=language_code)
+        await session.execute(stmt)
+        await session.commit()
