@@ -1,8 +1,8 @@
 from aiogram import Router, Bot, F, types
 from aiogram.types import LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton, PreCheckoutQuery
 
-from telegram_suggestions.database.requests import get_or_create_user, activate_channel_premium
-from telegram_suggestions.utils.localization import t
+from database.requests import get_or_create_user, activate_channel_premium
+from utils.localization import t
 
 router = Router()
 

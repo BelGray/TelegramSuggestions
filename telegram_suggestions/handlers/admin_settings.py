@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
-from telegram_suggestions.database.requests import (
+from database.requests import (
     get_or_create_user,
     get_user_channels,
     get_channel_by_id,
@@ -23,7 +23,7 @@ from telegram_suggestions.database.requests import (
     is_user_channel_admin,
     set_channel_language
 )
-from telegram_suggestions.utils.localization import t
+from utils.localization import t
 
 router = Router()
 

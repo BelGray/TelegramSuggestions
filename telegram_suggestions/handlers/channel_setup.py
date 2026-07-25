@@ -4,12 +4,12 @@ from aiogram.filters import CommandStart, CommandObject, ChatMemberUpdatedFilter
 from aiogram.types import ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from telegram_suggestions.database.requests import (
+from database.requests import (
     get_or_create_user,
     create_channel,
     add_admin
 )
-from telegram_suggestions.utils.localization import t
+from utils.localization import t
 
 router = Router()
 

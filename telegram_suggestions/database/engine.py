@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from telegram_suggestions.config import config
-from telegram_suggestions.database.models import Base
+from config import config
+from database.models import Base
 
 engine = create_async_engine(config.DB_URL, echo=False)
 

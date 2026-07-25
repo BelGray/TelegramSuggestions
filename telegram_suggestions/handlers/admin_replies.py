@@ -5,10 +5,10 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LinkPreviewOptions
 from sqlalchemy import select, update
 
-from telegram_suggestions.database.engine import async_session
-from telegram_suggestions.database.models import Message, Channel
-from telegram_suggestions.database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications, is_user_channel_admin
-from telegram_suggestions.utils.localization import t
+from database.engine import async_session
+from database.models import Message, Channel
+from database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications, is_user_channel_admin
+from utils.localization import t
 
 router = Router()
 

@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 
 from sqlalchemy import select, func, update, delete
-from telegram_suggestions.database.engine import async_session
-from telegram_suggestions.database.models import User, Channel, ChannelAdmin, Message, ChannelBan, AdminNotification
+from database.engine import async_session
+from database.models import User, Channel, ChannelAdmin, Message, ChannelBan, AdminNotification
 
 
 async def get_or_create_user(user_id: int, language_code: str = "ru") -> User:
