@@ -9,6 +9,7 @@ from aiogram.enums import ParseMode
 
 from config import config
 from database.engine import init_db
+from database.requests import cleanup_old_processed_messages
 from handlers import channel_setup, subscriber, admin_settings, admin_replies, payments
 
 
@@ -34,6 +35,7 @@ async def main():
     )
 
     await init_db()
+    await cleanup_old_processed_messages(days=60)
 
     bot = Bot(
         token=config.BOT_TOKEN,

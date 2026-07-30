@@ -380,3 +380,15 @@ async def set_user_language(user_id: int, language_code: str):
         stmt = update(User).where(User.id == user_id).values(language_code=language_code)
         await session.execute(stmt)
         await session.commit()
+
+async def cleanup_old_processed_messages(days: int = 60):
+    """Автоматическое удаление обработанных вопросов и идей старше 60 дней (отзывы НЕ трогаем!)"""
+    async with async_session() as session:
+        cutoff_date = datetime.now() - timedelta(days=days)
+        stmt = delete(Message).where(
+            Message.type.in_(["idea", "question_all", "question_admin"]),
+            Message.status.in_(["answered", "published", "declined"]),
+            Message.created_at < cutoff_date
+        )
+        await session.execute(stmt)
+        await session.commit()
