@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 
 from database.engine import async_session
 from database.models import Message, Channel
-from database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications, is_user_channel_admin
+from database.requests import get_or_create_user, ban_user, unban_user, is_channel_premium, get_admin_notifications, is_user_channel_admin, get_admin_record, get_channel_admins
 from utils.localization import t
 
 router = Router()
@@ -18,17 +18,44 @@ class AdminReplyFSM(StatesGroup):
     waiting_for_public_reply = State()
 
 
-async def get_sender_display_name(bot: Bot, sender_id: int) -> str:
+async def get_sender_display_name(bot: Bot, sender_id: int, lang: str = "ru") -> str:
+    """Получить имя/юзернейм автора на языке канала"""
+    fallback = t("subscriber_fallback_name", lang)
     try:
         chat = await bot.get_chat(sender_id)
         if chat.username:
             return f"@{chat.username}"
-        return chat.first_name or "Подписчика"
+        return chat.first_name or fallback
     except Exception:
-        return "Подписчика"
+        return fallback
 
+async def get_admin_formatted_display_name(channel_id: int, user_id: int, bot: Bot, lang: str = "ru") -> str:
+    """Динамический расчет имени админа на языке получателя карточки"""
+    admin_rec = await get_admin_record(channel_id, user_id)
+    disp_type = admin_rec.display_type if admin_rec else "anon"
 
-async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, actor_name: str, action_key: str, answer_text: str, bot: Bot):
+    try:
+        chat = await bot.get_chat(user_id)
+        first_name = chat.first_name or "Admin"
+        username = f"@{chat.username}" if chat.username else first_name
+    except Exception:
+        first_name = "Admin"
+        username = "Admin"
+
+    if disp_type == "name":
+        return t("admin_name_fmt", lang, name=first_name)
+    elif disp_type == "username":
+        return t("admin_username_fmt", lang, username=username)
+    else:
+        admins = await get_channel_admins(channel_id)
+        idx = 1
+        for i, a in enumerate(admins, 1):
+            if a.user_id == user_id:
+                idx = i
+                break
+        return t("disp_anon_title", lang).replace("X", str(idx))
+
+async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, action_key: str, answer_text: str, bot: Bot):
     notifications = await get_admin_notifications(db_msg_id)
 
     async with async_session() as session:
@@ -42,12 +69,14 @@ async def sync_all_admin_cards(db_msg_id: int, actor_user_id: int, actor_name: s
             adm = await get_or_create_user(notif.admin_user_id)
             lang = adm.language_code
 
+            actor_display_name = await get_admin_formatted_display_name(orig_msg.channel_id, actor_user_id, bot, lang)
+
             action_str = t(action_key, lang)
             card_text = t(
                 "admin_card_processed",
                 lang,
                 orig_text=orig_text,
-                actor_name=actor_name,
+                actor_name=actor_display_name,
                 action_str=action_str,
                 answer_text=answer_text
             )
@@ -136,7 +165,7 @@ async def send_private_reply_to_user(message: types.Message, state: FSMContext, 
             await session.commit()
 
         actor_name = message.from_user.first_name or "Admin"
-        await sync_all_admin_cards(msg_id, message.from_user.id, actor_name, "action_priv_reply", message.text or "[Media]", bot)
+        await sync_all_admin_cards(msg_id, message.from_user.id, "action_priv_reply", message.text or "[Media]", bot)
 
         await message.answer(t("reply_sent_to_user_success", lang))
     except Exception as e:
@@ -208,7 +237,7 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
     if orig_msg.is_anonymous:
         sender_str = t("anon_question_title", channel_lang)
     else:
-        author_str = await get_sender_display_name(bot, orig_msg.sender_id)
+        author_str = await get_sender_display_name(bot, orig_msg.sender_id, channel_lang)
         sender_str = t("public_question_title_open", channel_lang, author_str=author_str)
 
     reply_hdr = t("channel_reply_header", channel_lang)
@@ -241,7 +270,7 @@ async def post_public_reply_to_channel(message: types.Message, state: FSMContext
             await session.commit()
 
         actor_name = message.from_user.first_name or "Admin"
-        await sync_all_admin_cards(msg_id, message.from_user.id, actor_name, "action_pub_reply", message.text or "", bot)
+        await sync_all_admin_cards(msg_id, message.from_user.id, "action_pub_reply", message.text or "", bot)
 
         await message.answer(t("post_published_success", lang))
     except Exception as e:
@@ -286,7 +315,7 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
     if orig_msg.is_anonymous:
         idea_hdr = t("idea_post_header_anon", channel_lang)
     else:
-        author_str = await get_sender_display_name(bot, orig_msg.sender_id)
+        author_str = await get_sender_display_name(bot, orig_msg.sender_id, channel_lang)
         idea_hdr = t("idea_post_header_public", channel_lang, author_str=author_str)
 
     idea_prompt = t("idea_suggest_prompt", channel_lang, bot_link=bot_link) if (not has_prem or show_copyright) else ""
@@ -324,7 +353,7 @@ async def publish_idea_to_channel(callback: types.CallbackQuery, bot: Bot):
             await session.commit()
 
         actor_name = callback.from_user.first_name or "Admin"
-        await sync_all_admin_cards(msg_id, callback.from_user.id, actor_name, "action_published_idea", orig_msg.text or "[Media]", bot)
+        await sync_all_admin_cards(msg_id, callback.from_user.id, "action_published_idea", orig_msg.text or "[Media]", bot)
 
         await callback.answer(t("post_published_success", lang))
     except Exception as e:
